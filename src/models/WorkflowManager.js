@@ -6,11 +6,14 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const EventEmitter = require('events');
 const logger = require('../utils/logger');
 const templateEngine = require('../utils/templateEngine');
 
-class WorkflowManager {
+class WorkflowManager extends EventEmitter {
   constructor(config = {}) {
+    super();
+    
     this.configDir = path.join(process.cwd(), 'config');
     this.workflowsDir = path.join(this.configDir, 'workflows');
     this.templatesDir = path.join(this.configDir, 'templates');
@@ -68,6 +71,52 @@ class WorkflowManager {
       logger.info(`Loaded ${Object.keys(this.workflows).length} workflows`);
     } catch (error) {
       logger.error(`Failed to load workflows: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Create default templates if none exist
+   */
+  createDefaultTemplates() {
+    try {
+      // Create default templates if none exist
+      if (Object.keys(this.templates).length === 0) {
+        const defaultTemplates = {
+          'feature-implementation': {
+            name: 'Feature Implementation',
+            description: 'Template for implementing a new feature',
+            content: 'Implement the {{featureName}} feature according to the following requirements:\n\n{{requirements}}\n\nConsider the following aspects:\n- Performance\n- Security\n- Maintainability\n- Testability',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          'bug-fix': {
+            name: 'Bug Fix',
+            description: 'Template for fixing a bug',
+            content: 'Fix the bug in {{component}} described as follows:\n\n{{bugDescription}}\n\nSteps to reproduce:\n{{reproductionSteps}}\n\nExpected behavior:\n{{expectedBehavior}}',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          'code-review': {
+            name: 'Code Review',
+            description: 'Template for code review',
+            content: 'Review the following code for {{component}}:\n\n```\n{{code}}\n```\n\nFocus on:\n- Code quality\n- Potential bugs\n- Performance issues\n- Security vulnerabilities',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        };
+        
+        // Save default templates
+        for (const [name, data] of Object.entries(defaultTemplates)) {
+          this.saveTemplate(name, data);
+        }
+        
+        logger.info('Created default templates');
+      }
+      
+      return true;
+    } catch (error) {
+      logger.error(`Failed to create default templates: ${error.message}`);
+      return false;
     }
   }
   
@@ -335,67 +384,122 @@ class WorkflowManager {
       
       // Update phase status
       currentPhase.status = 'running';
+      currentPhase.startedAt = new Date().toISOString();
+      
+      // Save workflow
       this.saveWorkflow(execution.workflowId, workflow);
       
       // Log phase start
-      this.logExecution(executionId, 'info', `Starting phase: ${currentPhase.name}`);
+      logger.info(`Executing phase: ${currentPhase.name} (${execution.currentPhaseIndex + 1}/${workflow.phases.length})`);
+      this.logExecution(executionId, 'info', `Executing phase: ${currentPhase.name}`);
       
-      // Get template
-      const template = this.getTemplate(currentPhase.templateId);
-      if (!template) {
-        throw new Error(`Template not found: ${currentPhase.templateId}`);
-      }
-      
-      // Process template with context
-      const processedContent = this.processTemplate(currentPhase.templateId, execution.context);
-      
-      // Add phase to results
-      execution.phaseResults.push({
-        phaseId: currentPhase.id,
-        status: 'running',
-        startedAt: new Date().toISOString()
+      // Emit phase started event
+      this.emit('phaseStarted', {
+        executionId,
+        workflowId: execution.workflowId,
+        projectId: execution.projectId,
+        phase: currentPhase
       });
       
-      // Handle based on phase type
-      if (currentPhase.requiresCodeAnalysis) {
-        // This is a concurrent phase - will be processed differently
-        this.logExecution(executionId, 'info', 'Phase requires code analysis - creating components');
+      try {
+        // Execute phase
+        const result = await this.executePhase(executionId, currentPhase);
         
-        // For now, we'll just simulate this being handled by another component
-        this.logExecution(executionId, 'info', 'Concurrent component handling delegated to external system');
+        // Update phase status
+        currentPhase.status = 'completed';
+        currentPhase.completedAt = new Date().toISOString();
         
-        // In a real implementation, this would send the template content to a system
-        // that would parse the output and create component-specific messages
-      } else {
-        // Regular phase - send the template directly
-        this.logExecution(executionId, 'info', 'Sending phase template to automation system');
+        // Add result to execution context
+        execution.phaseResults.push({
+          phaseId: currentPhase.id,
+          result,
+          completedAt: new Date().toISOString()
+        });
         
-        // In a real implementation, this would actually send the message
-        // For now, we'll just log it
-        this.logExecution(executionId, 'debug', `Template content: ${processedContent.substring(0, 100)}...`);
+        // Log phase completion
+        logger.info(`Completed phase: ${currentPhase.name}`);
+        this.logExecution(executionId, 'info', `Completed phase: ${currentPhase.name}`);
         
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Update current phase result
-        const currentPhaseResultIndex = execution.phaseResults.length - 1;
-        execution.phaseResults[currentPhaseResultIndex].status = 'completed';
-        execution.phaseResults[currentPhaseResultIndex].completedAt = new Date().toISOString();
+        // Emit phase completed event
+        this.emit('phaseCompleted', {
+          executionId,
+          workflowId: execution.workflowId,
+          projectId: execution.projectId,
+          phase: currentPhase,
+          result
+        });
         
         // Move to next phase
         execution.currentPhaseIndex++;
         
-        // Continue to next phase
-        this.executeNextPhase(executionId);
+        // Save workflow
+        this.saveWorkflow(execution.workflowId, workflow);
+        
+        // Execute next phase
+        setImmediate(() => this.executeNextPhase(executionId));
+      } catch (error) {
+        // Phase execution failed
+        currentPhase.status = 'failed';
+        currentPhase.failedAt = new Date().toISOString();
+        currentPhase.error = error.message;
+        
+        // Save workflow
+        this.saveWorkflow(execution.workflowId, workflow);
+        
+        // Log phase failure
+        logger.error(`Failed to execute phase: ${currentPhase.name} - ${error.message}`);
+        this.logExecution(executionId, 'error', `Failed to execute phase: ${currentPhase.name} - ${error.message}`);
+        
+        // Emit phase failed event
+        this.emit('phaseFailed', {
+          executionId,
+          workflowId: execution.workflowId,
+          projectId: execution.projectId,
+          phase: currentPhase,
+          error: error.message
+        });
+        
+        // Fail the workflow execution
+        this.failWorkflowExecution(executionId, error.message);
       }
     } catch (error) {
-      logger.error(`Failed to execute phase: ${error.message}`);
-      this.logExecution(executionId, 'error', `Phase execution failed: ${error.message}`);
+      logger.error(`Error in executeNextPhase: ${error.message}`);
+      this.failWorkflowExecution(executionId, error.message);
+    }
+  }
+  
+  /**
+   * Execute a specific phase
+   * @param {string} executionId - Execution ID
+   * @param {object} phase - Phase configuration
+   * @returns {Promise<object>} Phase execution result
+   */
+  async executePhase(executionId, phase) {
+    try {
+      const execution = this.activeWorkflows[executionId];
       
-      // Update execution status
-      if (this.activeWorkflows[executionId]) {
-        this.activeWorkflows[executionId].status = 'failed';
+      // Get template if specified
+      let templateContent = null;
+      if (phase.templateId && this.templates[phase.templateId]) {
+        templateContent = this.processTemplate(phase.templateId, execution.context);
       }
+      
+      // In a real implementation, this would execute the phase logic
+      // For now, we'll just simulate a delay and return a result
+      
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Return simulated result
+      return {
+        success: true,
+        output: `Simulated output for phase: ${phase.name}`,
+        templateContent,
+        executedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      logger.error(`Failed to execute phase: ${error.message}`);
+      throw error;
     }
   }
   
@@ -410,52 +514,80 @@ class WorkflowManager {
         throw new Error(`Execution not found: ${executionId}`);
       }
       
-      // Update status
+      // Update execution status
       execution.status = 'completed';
       execution.completedAt = new Date().toISOString();
       
       // Log completion
-      this.logExecution(executionId, 'info', 'Workflow execution completed successfully');
+      logger.info(`Completed workflow execution: ${executionId}`);
+      this.logExecution(executionId, 'info', 'Workflow execution completed');
       
-      // In a real implementation, we might save execution history to a database
-      
-      // Remove from active workflows after a delay
-      setTimeout(() => {
-        delete this.activeWorkflows[executionId];
-      }, 60000); // Keep in memory for 1 minute for reference
-      
-      return true;
+      // Emit workflow completed event
+      this.emit('workflowCompleted', {
+        executionId,
+        workflowId: execution.workflowId,
+        projectId: execution.projectId,
+        results: execution.phaseResults
+      });
     } catch (error) {
       logger.error(`Failed to complete workflow execution: ${error.message}`);
-      return false;
     }
   }
   
   /**
-   * Add a log entry to an execution
+   * Fail a workflow execution
    * @param {string} executionId - Execution ID
-   * @param {string} level - Log level (info, warn, error, debug)
+   * @param {string} errorMessage - Error message
+   */
+  failWorkflowExecution(executionId, errorMessage) {
+    try {
+      const execution = this.activeWorkflows[executionId];
+      if (!execution) {
+        throw new Error(`Execution not found: ${executionId}`);
+      }
+      
+      // Update execution status
+      execution.status = 'failed';
+      execution.failedAt = new Date().toISOString();
+      execution.error = errorMessage;
+      
+      // Log failure
+      logger.error(`Failed workflow execution: ${executionId} - ${errorMessage}`);
+      this.logExecution(executionId, 'error', `Workflow execution failed: ${errorMessage}`);
+      
+      // Emit workflow failed event
+      this.emit('workflowFailed', {
+        executionId,
+        workflowId: execution.workflowId,
+        projectId: execution.projectId,
+        error: errorMessage
+      });
+    } catch (error) {
+      logger.error(`Error in failWorkflowExecution: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Log a message to the execution log
+   * @param {string} executionId - Execution ID
+   * @param {string} level - Log level (info, warn, error)
    * @param {string} message - Log message
    */
   logExecution(executionId, level, message) {
     try {
-      if (!this.activeWorkflows[executionId]) {
-        return false;
+      const execution = this.activeWorkflows[executionId];
+      if (!execution) {
+        return;
       }
       
-      this.activeWorkflows[executionId].logs.push({
+      // Add log entry
+      execution.logs.push({
         timestamp: new Date().toISOString(),
         level,
         message
       });
-      
-      // Also log to system logger
-      logger[level](`[Execution ${executionId}] ${message}`);
-      
-      return true;
     } catch (error) {
       logger.error(`Failed to log execution: ${error.message}`);
-      return false;
     }
   }
   
@@ -465,60 +597,38 @@ class WorkflowManager {
    * @returns {object} Execution status
    */
   getExecutionStatus(executionId) {
-    return this.activeWorkflows[executionId];
+    const execution = this.activeWorkflows[executionId];
+    if (!execution) {
+      return null;
+    }
+    
+    const workflow = this.getWorkflow(execution.workflowId);
+    
+    return {
+      executionId,
+      workflowId: execution.workflowId,
+      workflowName: workflow ? workflow.name : 'Unknown',
+      projectId: execution.projectId,
+      status: execution.status,
+      currentPhase: execution.currentPhaseIndex + 1,
+      totalPhases: workflow ? workflow.phases.length : 0,
+      startedAt: execution.startedAt,
+      completedAt: execution.completedAt,
+      failedAt: execution.failedAt,
+      error: execution.error,
+      phaseResults: execution.phaseResults.length
+    };
   }
   
   /**
-   * Create default workflow templates
+   * Get all active workflow executions
+   * @returns {Array<object>} Active executions
    */
-  createDefaultTemplates() {
-    // Structure Analysis Template
-    this.saveTemplate('structure-analysis', {
-      name: 'Structure Analysis',
-      description: 'Analyzes the current codebase structure',
-      content: '{{projectUrl}} - View this file and properly analyze code contexts from whole project - GenerateSTRUCTURE\'current\'.promptp',
-      type: 'initialization',
-      createdAt: new Date().toISOString()
-    });
-    
-    // Feature Suggestion Template
-    this.saveTemplate('feature-suggestion', {
-      name: 'Feature Suggestion',
-      description: 'Generates suggested features for the project',
-      content: '{{projectUrl}} - View this file and properly analyze code contexts from whole project and generate suggested feature list- View explicitly: generateSTRUCTURE\'suggested\'.prompt',
-      type: 'initialization',
-      createdAt: new Date().toISOString()
-    });
-    
-    // Step Generation Template
-    this.saveTemplate('step-generation', {
-      name: 'Step Generation',
-      description: 'Creates implementation steps with concurrent components',
-      content: 'Carefully analyze text contents from - GenerateSTEP.prompt and accordingly create STEPS.md instructions with maximum concurrently developable components as shown in examples',
-      type: 'initialization',
-      createdAt: new Date().toISOString()
-    });
-    
-    // Feature Implementation Template
-    this.saveTemplate('feature-implementation', {
-      name: 'Feature Implementation',
-      description: 'Template for implementing a specific feature',
-      content: 'In accordance to best developmental methods and considering all correspondent code context -> Implement {{featureName}}\n\n{{featureDescription}}\n\n{{featureRequirements}}\n\nhave in mind that there are other concurrently developed correspondent features therefore you should carefully align with requirements of the feature',
-      type: 'implementation',
-      createdAt: new Date().toISOString()
-    });
-    
-    // Feature Validation Template
-    this.saveTemplate('feature-validation', {
-      name: 'Feature Validation',
-      description: 'Validates implemented features for a phase',
-      content: 'Properly analyze if features from phase {{phaseNumber}} fully correspond to the requirements of the phase and if the created code context does not have any code issues, wrongly set parameters or wrong initializations anywhere - if it does, propose a PR with fixes',
-      type: 'validation',
-      createdAt: new Date().toISOString()
-    });
-    
-    logger.info('Created default workflow templates');
+  getAllExecutions() {
+    return Object.keys(this.activeWorkflows).map(executionId => 
+      this.getExecutionStatus(executionId)
+    );
   }
 }
 
-module.exports = WorkflowManager; 
+module.exports = WorkflowManager;

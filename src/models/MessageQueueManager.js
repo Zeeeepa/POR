@@ -1,32 +1,44 @@
 /**
  * MessageQueueManager.js
- * Manages a queue of messages with rate limiting, prioritization, and error handling
+ * Manages message queues for automated input with priority levels
  */
 
+const { v4: uuidv4 } = require('uuid');
 const EventEmitter = require('events');
 const logger = require('../utils/logger');
-const CursorAutomation = require('../utils/CursorAutomation');
 
 class MessageQueueManager extends EventEmitter {
   constructor(config = {}) {
     super();
     
+    // Default configuration
     this.config = {
-      defaultDelay: 2000,                  // Default delay between messages in ms
-      maxConcurrentMessages: 3,            // Max number of messages to process concurrently
-      maxRetries: 3,                       // Max retries for failed messages
       priorityLevels: ['high', 'normal', 'low'],
-      ...config
+      maxConcurrentMessages: config.messaging?.maxConcurrentMessages || 3,
+      maxRetries: config.messaging?.maxRetries || 3,
+      defaultDelay: config.messaging?.defaultDelay || 2000,
+      defaultInputPosition: config.messaging?.defaultInputPosition || 'default'
     };
     
-    this.queues = {
-      high: [],
-      normal: [],
-      low: []
-    };
+    // Override with provided config
+    if (config.messaging) {
+      this.config = {
+        ...this.config,
+        ...config.messaging
+      };
+    }
     
+    // Initialize queues for each priority level
+    this.queues = {};
+    for (const priority of this.config.priorityLevels) {
+      this.queues[priority] = [];
+    }
+    
+    // Initialize state
     this.activeMessages = 0;
     this.processingPaused = false;
+    
+    // Initialize statistics
     this.stats = {
       enqueued: 0,
       processed: 0,
@@ -34,37 +46,50 @@ class MessageQueueManager extends EventEmitter {
       retried: 0
     };
     
-    this.cursorAutomation = CursorAutomation;
+    // Get cursor automation (will be injected)
+    this.cursorAutomation = null;
+    
+    logger.info('MessageQueueManager initialized');
+  }
+  
+  /**
+   * Set cursor automation instance
+   * @param {Object} automation - Cursor automation instance
+   */
+  setCursorAutomation(automation) {
+    this.cursorAutomation = automation;
+    logger.info('Cursor automation set');
   }
   
   /**
    * Add a message to the queue
-   * @param {Object} message - Message object with content and metadata
+   * @param {Object} message - Message to enqueue
    * @param {string} priority - Priority level (high, normal, low)
    * @returns {string} Message ID
    */
   enqueueMessage(message, priority = 'normal') {
     try {
-      // Ensure priority is valid
+      // Validate priority
       if (!this.queues[priority]) {
-        priority = 'normal';
+        throw new Error(`Invalid priority: ${priority}`);
       }
       
-      // Generate a message ID if not provided
-      if (!message.id) {
-        message.id = Date.now().toString() + Math.random().toString(36).substring(2, 9);
-      }
-      
-      // Add metadata
+      // Create message object
       const queuedMessage = {
-        ...message,
+        id: uuidv4(),
+        content: message.content,
+        templateName: message.templateName,
+        templateData: message.templateData,
+        inputPosition: message.inputPosition || this.config.defaultInputPosition,
+        delay: message.delay || this.config.defaultDelay,
+        metadata: message.metadata || {},
         priority,
-        queuedAt: new Date().toISOString(),
         status: 'queued',
-        attempts: 0
+        attempts: 0,
+        addedAt: new Date().toISOString()
       };
       
-      // Add to the appropriate queue
+      // Add to appropriate queue
       this.queues[priority].push(queuedMessage);
       
       // Update stats
@@ -230,6 +255,11 @@ class MessageQueueManager extends EventEmitter {
    */
   async processMessage(message) {
     try {
+      // Ensure cursor automation is available
+      if (!this.cursorAutomation) {
+        throw new Error('Cursor automation not set');
+      }
+      
       // Get input position name
       const positionName = message.inputPosition || this.config.defaultInputPosition;
       
@@ -399,4 +429,4 @@ class MessageQueueManager extends EventEmitter {
   }
 }
 
-module.exports = MessageQueueManager; 
+module.exports = MessageQueueManager;
