@@ -1,0 +1,43 @@
+Feature Discovery Prompt
+Objective
+The primary goal is to conduct a thorough feature discovery analysis based on the project documentation and codebase. This analysis aims to identify the most valuable and effective features for inclusion in the "SUGGESTED" section of the STRUCTURE.md document. The objective is to gather a comprehensive list of features that maximize effectiveness, align with strategic objectives, and address user needs, thereby guiding the selection of required features for further development.
+
+Effectiveness-Prioritized Features
+Identification Criteria
+Maximum Effectiveness-to-Effort Ratio: Identify features that offer the highest return on investment in terms of effort and resources.
+Critical Bottleneck Resolution: Prioritize features that address significant bottlenecks or pain points in the current system.
+Technical Debt Reduction: Focus on features that mitigate substantial technical debt, enhancing the system's long-term maintainability.
+Leveraging Existing Architecture: Propose enhancements that build upon the current architecture while introducing key improvements that align with the project's goals.
+Feature Details
+For each feature, provide the following information:
+
+Name: A clear and descriptive name that accurately reflects the feature's purpose.
+Purpose: A concise explanation of what the feature aims to achieve and how it addresses specific challenges or opportunities.
+Estimated Impact: Assess the anticipated impact of the feature on the system's performance, user experience, and overall value. Categorize the impact as high, medium, or low.
+Key Dependencies: List any critical dependencies or prerequisites that must be addressed before the feature can be implemented. This includes both technical and operational dependencies.
+AI-Recommended Strategic Enhancements
+Identification Criteria
+Innovative Features: Propose features that align with emerging best practices and industry trends, ensuring the project remains at the forefront of technological advancements.
+Architectural Improvements: Suggest enhancements that significantly improve the system's scalability, performance, and maintainability, ensuring long-term sustainability and adaptability.
+Transformative Capabilities: Include features that have the potential to provide a competitive advantage, setting the project apart from competitors and enhancing its market position.
+Enhancement Details
+For each recommendation, provide the following information:
+
+Name: A clear and descriptive name that accurately reflects the enhancement's strategic value.
+Strategic Justification: Explain the strategic importance of the enhancement, highlighting how it aligns with the project's long-term goals and objectives.
+Implementation Approach: Outline the approach to implementing the enhancement, including key steps, technical considerations, and resource requirements.
+Expected Benefits: Describe the anticipated benefits of the enhancement, focusing on how it will improve the system's performance, user experience, and competitive position.
+Potential Challenges: Identify any potential challenges or risks associated with the implementation of the enhancement, including technical hurdles, resource constraints, and integration issues.
+User-Relevant Feature Suggestions
+Identification Criteria
+User Pain Point Addressal: Identify features that directly address user pain points, enhancing the overall user experience and satisfaction.
+Alignment with User Input: Focus on features that align with user feedback and input, ensuring that the proposed enhancements meet the needs and expectations of the users.
+User Experience Enhancement: Propose features that significantly improve the user experience, making the system more intuitive, efficient, and valuable to users.
+Feature Details
+For each suggestion, provide the following information:
+
+Name: A clear and descriptive name that accurately reflects the feature's user benefit.
+User Benefit: Explain how the feature benefits the user, focusing on the specific pain points it addresses and the value it provides.
+Alignment with User Input: Describe how the feature aligns with user feedback and input, ensuring that it meets the needs and expectations of the users.
+Implementation Feasibility: Assess the feasibility of implementing the feature, considering factors such as technical challenges, resource requirements, and integration efforts.
+Dependencies: List any dependencies or prerequisites that must be addressed before the feature can be implemented. This includes both technical and operational dependencies.

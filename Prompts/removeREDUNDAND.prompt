@@ -1,0 +1,324 @@
+MISSION
+Transform codebase by identifying problematic implementations, preserving useful functionality, and consolidating relevant components into a cohesive, interconnected structure that eliminates redundancy and strengthens feature integration.
+WORKFLOW PHASES
+1️⃣ COMPREHENSIVE CONTEXT ESTABLISHMENT
+PURPOSE: Build complete understanding of codebase structure, dependencies, and architectural patterns before analysis begins.
+EXECUTION:
+
+Create detailed dependency graphs and component interaction models with explicit visualization
+Map bounded contexts and service boundaries with interaction protocols clearly identified
+Document primary architectural patterns with expected implementation standards
+Validate all assumptions exclusively through direct code examination or stakeholder confirmation
+Construct hierarchical codebase structure with critical path identification
+Establish baseline metrics for comparison after consolidation
+MANDATORY: Review STRUCTURE.md "REQUIRED" section to understand core functionality requirements and project expectations
+
+DELIVERABLE: System Architecture Map with component relationships, dependencies, and critical paths documented.
+2️⃣ SYSTEMATIC ISSUE IDENTIFICATION
+PURPOSE: Locate all implementation issues using objective, quantitative measures across multiple dimensions.
+EXECUTION:
+
+Architectural Issues:
+
+Identify violations of architectural constraints and layer isolation
+Evaluate conformance to SOLID, DRY, and KISS principles
+Map inconsistencies between documented patterns and actual implementations
+
+
+Code Quality Issues:
+
+Measure cyclomatic complexity across critical system pathways
+Detect code duplication, obsolete patterns, and unnecessary complexity
+Quantify technical debt using established metrics and priority frameworks
+Evaluate test coverage focusing on critical paths and boundary conditions
+
+
+Resource Management Issues:
+
+Identify memory leaks and improper connection handling
+Assess exception propagation, error recovery, and failure isolation mechanisms
+Verify proper handling of external system failures and inconsistent states
+Evaluate concurrency models and thread safety implementations
+
+
+Performance Issues:
+
+Identify computational bottlenecks and excessive resource consumption
+Analyze query execution plans and data access patterns
+Evaluate caching strategies and invalidation mechanisms
+Assess retry policies, circuit breakers, and graceful degradation mechanisms
+
+
+
+DELIVERABLE: Comprehensive Issue Registry with code references, categorization by type/severity, and impact assessment.
+3️⃣ FUNCTIONALITY CLASSIFICATION & TRIAGE
+PURPOSE: Evaluate problematic code based on business value and strategic alignment to determine preservation vs. elimination.
+⚠️ CRITICAL REFERENCE: All functionality must be evaluated against the STRUCTURE.md "REQUIRED" section, which serves as the definitive authority on which features are essential to the project.
+EXECUTION:
+
+FIRST STEP: Cross-reference all components against STRUCTURE.md "REQUIRED" section to identify mandated functionality
+For each component with implementation issues:
+
+Assess alignment with STRUCTURE.md "REQUIRED" section specifications
+Evaluate uniqueness of functionality and integration with other components
+Perform risk/benefit analysis with quantified metrics
+Categorize into:
+
+CRITICAL-PRESERVE: Essential functionality listed in STRUCTURE.md "REQUIRED" section
+USEFUL-PRESERVE: Non-critical but valuable functionality supporting required features
+REDUNDANT: Functionality duplicated elsewhere or not supporting required features
+OBSOLETE: Functionality no longer aligned with STRUCTURE.md requirements
+HARMFUL: Functionality creating systemic issues or technical debt
+
+
+
+
+Prioritize preservation candidates based on:
+
+STRUCTURE.md "REQUIRED" section compliance
+Implementation effort estimation
+Dependencies from other critical components
+Technical debt reduction potential
+
+
+
+DELIVERABLE: Functionality Preservation Matrix with categorization and prioritization of all problematic components, with explicit references to STRUCTURE.md "REQUIRED" section for all preservation decisions.
+4️⃣ CONSOLIDATION STRATEGY DEVELOPMENT
+PURPOSE: Create specific plans for incorporating preserved functionality into existing structures while eliminating redundancy.
+EXECUTION:
+
+For each PRESERVE-categorized component:
+
+Identify target location within existing architecture
+Formulate targeted improvement strategies with measurable outcomes
+Establish clear validation criteria for successful integration
+Document required interface adaptations and dependency adjustments
+Ensure alignment with STRUCTURE.md "REQUIRED" specifications
+
+
+Evaluate integration options against:
+
+Library substitution opportunities with battle-tested alternatives
+Performance implications of consolidation approach
+Maintenance record and community support of potential dependencies
+Migration complexity and backward compatibility requirements
+
+
+For components with cross-cutting concerns:
+
+Identify synchronized refactoring requirements
+Develop coordinated improvement strategies across affected components
+Document potential cascade effects from consolidation
+
+
+
+DELIVERABLE: Consolidation Blueprint with target state architecture and specific integration pathways for preserved functionality.
+5️⃣ IMPLEMENTATION & VERIFICATION
+PURPOSE: Execute consolidation with disciplined adherence to architectural principles and rigorous validation.
+EXECUTION:
+
+Implement consolidation according to:
+
+Modular, extensible design with precise interface contracts
+Consistent error handling and boundary validation patterns
+Robust state management with clear data flow directionality
+Backward compatibility preservation for existing consumers
+
+
+Document as consolidation proceeds:
+
+Event flows, command chains, and query pathways
+Data consistency guarantees across integration boundaries
+New dependency relationships and interaction protocols
+
+
+Verify consolidation success through:
+
+Regression testing of preserved functionality
+Performance testing of consolidated components
+Integration testing across component boundaries
+Validation against established success criteria
+MANDATORY: Final verification against STRUCTURE.md "REQUIRED" section to confirm all required functionality is present and operational
+
+
+
+DELIVERABLE:
+
+Clean, production-optimized code implementations
+Updated architectural documentation reflecting consolidated state
+Verification report demonstrating successful preservation of critical functionality
+Compliance report showing alignment with STRUCTURE.md "REQUIRED" specifications
+
+SUCCESS CRITERIA
+The consolidation process will be considered successful when:
+
+All STRUCTURE.md "REQUIRED" functionality is fully implemented and operational
+All dead and redundant code not supporting required functionality has been eliminated
+All critical and useful functionality has been preserved
+Consolidated components demonstrate improved interconnection
+Technical debt metrics show quantifiable reduction
+System maintainability and extensibility are improved
+Performance meets or exceeds pre-consolidation baselines
+Architecture documentation accurately reflects implemented reality
+MISSION
+Transform codebase by identifying problematic implementations, preserving useful functionality, and consolidating relevant components into a cohesive, interconnected structure that eliminates redundancy and strengthens feature integration.
+WORKFLOW PHASES
+1️⃣ COMPREHENSIVE CONTEXT ESTABLISHMENT
+PURPOSE: Build complete understanding of codebase structure, dependencies, and architectural patterns before analysis begins.
+EXECUTION:
+
+Create detailed dependency graphs and component interaction models with explicit visualization
+Map bounded contexts and service boundaries with interaction protocols clearly identified
+Document primary architectural patterns with expected implementation standards
+Validate all assumptions exclusively through direct code examination or stakeholder confirmation
+Construct hierarchical codebase structure with critical path identification
+Establish baseline metrics for comparison after consolidation
+MANDATORY: Review STRUCTURE.md "REQUIRED" section to understand core functionality requirements and project expectations
+
+DELIVERABLE: System Architecture Map with component relationships, dependencies, and critical paths documented.
+2️⃣ SYSTEMATIC ISSUE IDENTIFICATION
+PURPOSE: Locate all implementation issues using objective, quantitative measures across multiple dimensions.
+EXECUTION:
+
+Architectural Issues:
+
+Identify violations of architectural constraints and layer isolation
+Evaluate conformance to SOLID, DRY, and KISS principles
+Map inconsistencies between documented patterns and actual implementations
+
+
+Code Quality Issues:
+
+Measure cyclomatic complexity across critical system pathways
+Detect code duplication, obsolete patterns, and unnecessary complexity
+Quantify technical debt using established metrics and priority frameworks
+Evaluate test coverage focusing on critical paths and boundary conditions
+
+
+Resource Management Issues:
+
+Identify memory leaks and improper connection handling
+Assess exception propagation, error recovery, and failure isolation mechanisms
+Verify proper handling of external system failures and inconsistent states
+Evaluate concurrency models and thread safety implementations
+
+
+Performance Issues:
+
+Identify computational bottlenecks and excessive resource consumption
+Analyze query execution plans and data access patterns
+Evaluate caching strategies and invalidation mechanisms
+Assess retry policies, circuit breakers, and graceful degradation mechanisms
+
+
+
+DELIVERABLE: Comprehensive Issue Registry with code references, categorization by type/severity, and impact assessment.
+3️⃣ FUNCTIONALITY CLASSIFICATION & TRIAGE
+PURPOSE: Evaluate problematic code based on business value and strategic alignment to determine preservation vs. elimination.
+⚠️ CRITICAL REFERENCE: All functionality must be evaluated against the STRUCTURE.md "REQUIRED" section, which serves as the definitive authority on which features are essential to the project.
+EXECUTION:
+
+FIRST STEP: Cross-reference all components against STRUCTURE.md "REQUIRED" section to identify mandated functionality
+For each component with implementation issues:
+
+Assess alignment with STRUCTURE.md "REQUIRED" section specifications
+Evaluate uniqueness of functionality and integration with other components
+Perform risk/benefit analysis with quantified metrics
+Categorize into:
+
+CRITICAL-PRESERVE: Essential functionality listed in STRUCTURE.md "REQUIRED" section
+USEFUL-PRESERVE: Non-critical but valuable functionality supporting required features
+REDUNDANT: Functionality duplicated elsewhere or not supporting required features
+OBSOLETE: Functionality no longer aligned with STRUCTURE.md requirements
+HARMFUL: Functionality creating systemic issues or technical debt
+
+
+
+
+Prioritize preservation candidates based on:
+
+STRUCTURE.md "REQUIRED" section compliance
+Implementation effort estimation
+Dependencies from other critical components
+Technical debt reduction potential
+
+
+
+DELIVERABLE: Functionality Preservation Matrix with categorization and prioritization of all problematic components, with explicit references to STRUCTURE.md "REQUIRED" section for all preservation decisions.
+4️⃣ CONSOLIDATION STRATEGY DEVELOPMENT
+PURPOSE: Create specific plans for incorporating preserved functionality into existing structures while eliminating redundancy.
+EXECUTION:
+
+For each PRESERVE-categorized component:
+
+Identify target location within existing architecture
+Formulate targeted improvement strategies with measurable outcomes
+Establish clear validation criteria for successful integration
+Document required interface adaptations and dependency adjustments
+Ensure alignment with STRUCTURE.md "REQUIRED" specifications
+
+
+Evaluate integration options against:
+
+Library substitution opportunities with battle-tested alternatives
+Performance implications of consolidation approach
+Maintenance record and community support of potential dependencies
+Migration complexity and backward compatibility requirements
+
+
+For components with cross-cutting concerns:
+
+Identify synchronized refactoring requirements
+Develop coordinated improvement strategies across affected components
+Document potential cascade effects from consolidation
+
+
+
+DELIVERABLE: Consolidation Blueprint with target state architecture and specific integration pathways for preserved functionality.
+5️⃣ IMPLEMENTATION & VERIFICATION
+PURPOSE: Execute consolidation with disciplined adherence to architectural principles and rigorous validation.
+EXECUTION:
+
+Implement consolidation according to:
+
+Modular, extensible design with precise interface contracts
+Consistent error handling and boundary validation patterns
+Robust state management with clear data flow directionality
+Backward compatibility preservation for existing consumers
+
+
+Document as consolidation proceeds:
+
+Event flows, command chains, and query pathways
+Data consistency guarantees across integration boundaries
+New dependency relationships and interaction protocols
+
+
+Verify consolidation success through:
+
+Regression testing of preserved functionality
+Performance testing of consolidated components
+Integration testing across component boundaries
+Validation against established success criteria
+MANDATORY: Final verification against STRUCTURE.md "REQUIRED" section to confirm all required functionality is present and operational
+
+
+
+DELIVERABLE:
+
+Clean, production-optimized code implementations
+Updated architectural documentation reflecting consolidated state
+Verification report demonstrating successful preservation of critical functionality
+Compliance report showing alignment with STRUCTURE.md "REQUIRED" specifications
+
+SUCCESS CRITERIA
+The consolidation process will be considered successful when:
+
+All STRUCTURE.md "REQUIRED" functionality is fully implemented and operational
+All dead and redundant code not supporting required functionality has been eliminated
+All critical and useful functionality has been preserved
+Consolidated components demonstrate improved interconnection
+Technical debt metrics show quantifiable reduction
+System maintainability and extensibility are improved
+Performance meets or exceeds pre-consolidation baselines
+Architecture documentation accurately reflects implemented reality

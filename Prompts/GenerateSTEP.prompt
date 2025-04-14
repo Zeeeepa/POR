@@ -1,0 +1,422 @@
+analyzes project documentation CURRENT.md ############## REQUIREMENTS #############(section) ) to generate a detailed step-by-step.md file that breaks down implementation into the smallest possible independent components to maximize concurrent development, allowing multiple team members to work simultaneously with minimal blocking dependencies.
+INPUTS
+
+
+OUTPUT
+
+step-by-step.md: Phased implementation plan maximizing concurrent development with clear dependencies
+
+PROCESS
+1. Documentation Analysis
+
+Analyze existan codefiles to map existing functionality
+Study CURRENT.md ############## REQUIREMENTS #############(section) section to identify target functionality
+Create a gap analysis between current and required states
+Identify any implementation constraints or technical requirements
+
+2. Component Atomization
+
+Extract all required functionality from  CURRENT.md ############## REQUIREMENTS #############(section) section
+Break down functionality into the smallest possible independent components
+For frontend: Divide by individual UI components, services, or utilities
+For backend: Divide by endpoints, services, data models, or utilities
+For full-stack: Separate frontend and backend concerns into independent components
+Aim for component granularity that allows for implementation by one developer in 1-3 days
+
+3. Dependency Analysis
+
+For each component, identify:
+
+Required inputs from other components
+Outputs provided to other components
+Shared resources or dependencies
+External system dependencies
+
+
+Create a dependency graph showing relationships between components
+Identify components with no dependencies (can be developed immediately)
+Identify components that block multiple others (critical path)
+Determine which dependencies can be resolved through interface contracts or mocks
+
+4. Phase Planning
+
+Group components into implementation phases based on dependencies
+Phase 1: All components with no dependencies (maximum concurrent development)
+Phase 2: Components that depend only on Phase 1 components
+Phase 3: Components that depend on Phase 1 and/or Phase 2 components
+Continue until all components are assigned to phases
+Ensure each phase maximizes the number of components that can be developed concurrently
+Aim for 5-10 concurrent components per phase based on team capacity
+
+5. Interface Definition
+
+For each dependency between components:
+
+Define clear interface contracts
+Specify data formats and structures
+Document expected behaviors
+Create validation criteria
+
+
+Identify opportunities to create mock implementations to unblock dependent components
+Prioritize interface definitions to enable maximum parallel development
+
+6. step-by-step.md Generation
+
+Create a comprehensive implementation plan organized by phases
+Within each phase, list all components that can be developed concurrently
+Clearly mark dependencies for each component
+Include integration points between components
+Add validation criteria for each component
+Reference relevant sections of STRUCTURE.md REQUIRED for traceability
+
+OPTIMIZATION GUIDELINES
+
+Maximize Component Independence: Break features into the smallest possible independent units
+Practical Concurrency Limit: Target 5-10 concurrent components based on team size and complexity
+Front-load Independent Components: Place all components with no dependencies in Phase 1
+Interface-First Development: Define interfaces early to enable parallel development
+Mock Dependencies: Use mocks or stubs to unblock dependent components
+Feature Flags: Use feature flags to integrate partially completed features
+Balanced Distribution: Ensure phases have approximately equal work to maintain team efficiency
+Critical Path Management: Identify and prioritize components that block multiple others
+Shared Libraries First: Prioritize development of shared utilities or components
+
+FORMATTING REQUIREMENTS FOR STEP.md
+The output step-by-step.md file should be structured as follows:
+1. Introduction
+
+Project overview
+Purpose of the implementation plan
+Key objectives from REQUIRED.md section
+Overall approach to concurrent development
+
+2. Dependency Graph
+
+Visual or textual representation of component dependencies
+Critical path identification
+Independent components highlighted
+
+3. Implementation Phases
+For each phase:
+
+Phase objective and expected outcomes
+List of all components that can be developed concurrently in this phase
+For each component:
+
+Clear description of functionality
+Dependencies on previous phases (if any)
+Implementation guidelines
+Validation criteria
+Reference to STRUCTURE.md REQUIRED section
+
+
+
+4. Integration Strategy
+
+Approach for combining components within and across phases
+Interface contracts and mock implementations
+Testing strategy for verifying component interactions
+Continuous integration approach
+
+5. Verification Framework
+
+Validation steps to ensure all REQUIRED functionality is implemented
+Testing approach for the integrated system
+References to specific requirements for each validation step
+
+EXAMPLE STRUCTURE
+markdown# Implementation Plan for [Project Name]
+
+## 1. Introduction
+[Project overview and implementation approach]
+
+## 2. Dependency Graph
+[Component dependency visualization]
+
+## 3. Implementation Phases
+
+### Phase 1: Foundation Components (8 concurrent components)
+*All components in this phase have no dependencies and can be developed simultaneously*
+
+	1. Entity Linking Module
+Module Path: core/analysis/entity_linking.py
+Implementation Query:
+Create a robust entity linking system that can identify when the same entity appears across different data sources (web, academic papers, YouTube videos, GitHub repositories)
+Implement similarity measures for entity resolution using both exact and fuzzy matching
+Calculate confidence scores for entity matches based on multiple attributes
+Support manual correction of entity links through a simple API
+Maintain a persistent entity registry with cross-source references
+Implement methods to merge entity information from multiple sources
+Provide visualization capabilities for entity networks
+Implement the Entity Linking module for Wiseflow that links entities across different data sources to create a unified view. The module should:
+
+
+The implementation should:
+- Build upon the existing Entity class in core/analysis/__init__.py
+- Use advanced NLP techniques for name normalization and matching
+- Support different entity types (people, organizations, locations, products, etc.)
+- Include comprehensive documentation and type hints
+- Implement unit tests for key functionality
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- link_entities(entities_list): Link entities across different sources
+- calculate_similarity(entity1, entity2): Calculate similarity between entities
+- merge_entities(entity_list): Merge information from duplicate entities
+- get_entity_by_id(entity_id): Retrieve an entity by ID
+- get_entities_by_name(name): Retrieve entities by name
+- update_entity_link(entity_id, linked_entity_id): Manually update entity links
+- visualize_entity_network(entities): Generate a visualization of entity links
+
+Dependencies:
+- core/analysis/__init__.py (Entity class)
+- core/utils/pb_api.py (for database operations)
+
+
+	2. Topic Modeling Module
+Module Path: core/analysis/topic_modeling.py
+Implementation Query:
+Implement both LLM-based and statistical topic modeling approaches
+Support hierarchical topic organization with parent-child relationships
+Track topic evolution over time
+Identify related topics and calculate similarity scores
+Provide methods to extract key terms and phrases for each topic
+Support topic clustering to group similar topics
+Include visualization capabilities for topic networks and hierarchies
+Implement the Entity Linking module for Wiseflow that links entities across different data sources to create a unified view. The module should:
+
+
+The implementation should:
+- Build upon the existing Entity class in core/analysis/__init__.py
+- Use advanced NLP techniques for name normalization and matching
+- Support different entity types (people, organizations, locations, products, etc.)
+- Include comprehensive documentation and type hints
+- Implement unit tests for key functionality
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- link_entities(entities_list): Link entities across different sources
+- calculate_similarity(entity1, entity2): Calculate similarity between entities
+- merge_entities(entity_list): Merge information from duplicate entities
+- get_entity_by_id(entity_id): Retrieve an entity by ID
+- get_entities_by_name(name): Retrieve entities by name
+- update_entity_link(entity_id, linked_entity_id): Manually update entity links
+- visualize_entity_network(entities): Generate a visualization of entity links
+
+Dependencies:
+- core/analysis/__init__.py (Entity class)
+- core/utils/pb_api.py (for database operations)
+Implement the Topic Modeling module for Wiseflow that identifies and tracks topics across different data sources. The module should:
+
+
+The implementation should:
+- Build upon the existing topic extraction functionality in core/analysis/data_mining.py
+- Support both supervised and unsupervised topic modeling
+- Include methods for topic validation and refinement
+- Provide APIs for topic search and filtering
+- Implement caching for performance optimization
+- Include comprehensive documentation and type hints
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- extract_topics_llm(texts): Extract topics using LLM-based approach
+- extract_topics_statistical(texts): Extract topics using statistical methods
+- cluster_topics(topics): Group similar topics into clusters
+- build_topic_hierarchy(topics): Organize topics into hierarchical structure
+- track_topic_evolution(topic_id, time_range): Track how a topic evolves over time
+- get_related_topics(topic_id): Find topics related to a given topic
+- visualize_topic_network(topics): Generate a visualization of topic relationships
+
+Dependencies:
+- core/analysis/data_mining.py (for existing topic extraction)
+- core/llms/litellm_wrapper.py (for LLM-based approaches)
+- core/utils/pb_api.py (for database operations)
+
+
+
+	3. Pattern Recognition Module
+Module Path: core/analysis/pattern_recognition.py
+Implementation Query:
+Implement temporal pattern detection to identify trends over time
+Support correlation analysis between different entities and topics
+Implement anomaly detection to identify unusual patterns or outliers
+Provide methods for causal analysis to identify potential cause-effect relationships
+Support pattern matching across different data types (text, numerical, categorical)
+Include visualization capabilities for identified patterns
+Implement confidence scoring for detected patterns
+Implement the Entity Linking module for Wiseflow that links entities across different data sources to create a unified view. The module should:
+
+
+The implementation should:
+- Build upon the existing Entity class in core/analysis/__init__.py
+- Use advanced NLP techniques for name normalization and matching
+- Support different entity types (people, organizations, locations, products, etc.)
+- Include comprehensive documentation and type hints
+- Implement unit tests for key functionality
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- link_entities(entities_list): Link entities across different sources
+- calculate_similarity(entity1, entity2): Calculate similarity between entities
+- merge_entities(entity_list): Merge information from duplicate entities
+- get_entity_by_id(entity_id): Retrieve an entity by ID
+- get_entities_by_name(name): Retrieve entities by name
+- update_entity_link(entity_id, linked_entity_id): Manually update entity links
+- visualize_entity_network(entities): Generate a visualization of entity links
+
+Dependencies:
+- core/analysis/__init__.py (Entity class)
+- core/utils/pb_api.py (for database operations)
+Implement the Topic Modeling module for Wiseflow that identifies and tracks topics across different data sources. The module should:
+
+
+The implementation should:
+- Build upon the existing topic extraction functionality in core/analysis/data_mining.py
+- Support both supervised and unsupervised topic modeling
+- Include methods for topic validation and refinement
+- Provide APIs for topic search and filtering
+- Implement caching for performance optimization
+- Include comprehensive documentation and type hints
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- extract_topics_llm(texts): Extract topics using LLM-based approach
+- extract_topics_statistical(texts): Extract topics using statistical methods
+- cluster_topics(topics): Group similar topics into clusters
+- build_topic_hierarchy(topics): Organize topics into hierarchical structure
+- track_topic_evolution(topic_id, time_range): Track how a topic evolves over time
+- get_related_topics(topic_id): Find topics related to a given topic
+- visualize_topic_network(topics): Generate a visualization of topic relationships
+
+Dependencies:
+- core/analysis/data_mining.py (for existing topic extraction)
+- core/llms/litellm_wrapper.py (for LLM-based approaches)
+- core/utils/pb_api.py (for database operations)
+Implement the Pattern Recognition module for Wiseflow that identifies patterns, trends, and anomalies across data sources. The module should:
+
+
+The implementation should:
+- Build upon the existing temporal pattern analysis in core/analysis/data_mining.py
+- Support different time granularities (hourly, daily, weekly, monthly)
+- Include statistical significance testing for identified patterns
+- Provide APIs for pattern search and filtering
+- Implement caching for performance optimization
+- Include comprehensive documentation and type hints
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- detect_temporal_patterns(data, time_field): Identify patterns over time
+- find_correlations(data_series1, data_series2): Calculate correlations between data series
+- detect_anomalies(data_series): Identify anomalies or outliers in data
+- analyze_causality(potential_cause, potential_effect): Analyze potential causal relationships
+- match_patterns(data, pattern_template): Match specific patterns in data
+- visualize_patterns(patterns): Generate visualizations of identified patterns
+- calculate_pattern_confidence(pattern): Calculate confidence score for a pattern
+
+
+
+[Components 1.4 through 1.8...]
+
+### Phase 2: Feature Components (6 concurrent components)
+*These components depend only on components from Phase 1*
+
+ User Interface Improvements Module
+Module Path: dashboard/visualization/__init__.py and related files
+Implementation Query:
+Implement customizable dashboards for data visualization
+Support search and filtering across all data sources
+Provide interactive visualizations for knowledge graphs, trends, and patterns
+Implement a notification system for new insights
+Support user-defined views and layouts
+Include methods for dashboard sharing and export
+Provide APIs for dashboard configuration and management
+Implement the Knowledge Graph Construction module for Wiseflow that builds and maintains a comprehensive knowledge graph from extracted information. The module should:
+
+
+The implementation should:
+- Build upon the existing KnowledgeGraph class in core/analysis/__init__.py
+- Support different relationship types and strengths
+- Include methods for entity and relationship disambiguation
+- Provide APIs for graph search and filtering
+- Implement caching for performance optimization
+- Include comprehensive documentation and type hints
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- build_knowledge_graph(entities, relationships): Build a knowledge graph from entities and relationships
+- enrich_knowledge_graph(graph, new_data): Enrich an existing knowledge graph with new data
+- query_knowledge_graph(graph, query): Query the knowledge graph for specific information
+- infer_relationships(graph): Infer new relationships based on existing knowledge
+- visualize_knowledge_graph(graph): Generate visualization of the knowledge graph
+- validate_knowledge_graph(graph): Validate the consistency of the knowledge graph
+- export_knowledge_graph(graph, format): Export the knowledge graph in different formats
+
+Dependencies:
+- core/analysis/__init__.py (for KnowledgeGraph class)
+- core/analysis/entity_linking.py (for entity information)
+- core/utils/pb_api.py (for database operations)
+Implement the Export and Integration module for Wiseflow that provides capabilities to export data in various formats and integrate with external systems. The module should:
+
+
+The implementation should:
+- Build upon the existing export functionality in core/utils/export_infos.py
+- Support different export formats and templates
+- Include methods for export customization and filtering
+- Provide APIs for export management
+- Implement caching for performance optimization
+- Include comprehensive documentation and type hints
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- export_to_format(data, format, template): Export data to a specific format
+- create_export_template(name, structure): Create a custom export template
+- configure_webhook(endpoint, events): Configure a webhook for specific events
+- schedule_export(data_query, format, schedule): Schedule regular exports
+- validate_export(export_data): Validate exported data for consistency
+- get_export_history(): Get history of previous exports
+- trigger_webhook(event, data): Manually trigger a webhook with specific data
+
+Dependencies:
+- core/utils/export_infos.py (for existing export functionality)
+- core/utils/pb_api.py (for database operations)
+- Various libraries for different export formats
+Implement the User Interface Improvements module for Wiseflow that enhances the dashboard with advanced visualization and interaction capabilities. The module should:
+
+
+The implementation should:
+- Build upon the existing dashboard functionality
+- Support different visualization types and layouts
+- Include methods for visualization customization and filtering
+- Provide APIs for dashboard management
+- Implement caching for performance optimization
+- Include comprehensive documentation and type hints
+- Follow the architectural patterns established in the codebase
+
+Key functions to implement:
+- create_dashboard(name, layout): Create a new dashboard with specific layout
+- add_visualization(dashboard_id, visualization_type, data_source): Add visualization to a dashboard
+- configure_notifications(settings): Configure notification settings
+- search_across_sources(query): Search across all data sources
+- export_dashboard(dashboard_id, format): Export a dashboard in different formats
+- share_dashboard(dashboard_id, permissions): Share a dashboard with specific permissions
+- get_dashboard_templates(): Get available dashboard templates
+
+Dependencies:
+- dashboard/main.py (for existing dashboard functionality)
+- core/utils/pb_api.py (for database operations)
+- Various visualization libraries
+
+[Components 2.2 through 2.6...]
+
+### Phase 3: Integration Components (5 concurrent components)
+*These components depend on components from Phases 1 and 2*
+
+[...]
+
+## 4. Integration Strategy
+[Integration approach and testing strategy]
+
+## 5. Verification Framework
+[System validation approach]
+This structure clearly shows which components can be developed concurrently within each phase, maximizing parallel development while respecting dependencies between components.
