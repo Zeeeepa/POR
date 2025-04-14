@@ -5,17 +5,24 @@
 
 const { Octokit } = require('@octokit/rest');
 const logger = require('./logger');
+const config = require('./config');
 
 class GitHubEnhanced {
-  constructor(config = {}) {
-    this.config = config;
+  /**
+   * Initialize the GitHubEnhanced client
+   * @param {Object} [options={}] - Configuration options
+   * @param {string} [options.token] - GitHub token (overrides config)
+   * @param {string} [options.baseUrl] - GitHub API base URL (overrides config)
+   */
+  constructor(options = {}) {
+    this.options = options;
     this.octokit = null;
     this.authenticated = false;
     this.prAnalysisQueue = [];
     this.mergeQueue = [];
     
     // Initialize if token is provided
-    if (config.github && config.github.token) {
+    if (options.token || config.github.token) {
       this.authenticate();
     }
   }
@@ -23,17 +30,19 @@ class GitHubEnhanced {
   /**
    * Authenticate with GitHub API
    * @returns {Promise<boolean>} Authentication success
+   * @throws {Error} If authentication fails
    */
   async authenticate() {
     try {
-      const token = this.config.github?.token || process.env.GITHUB_TOKEN;
+      const token = this.options.token || config.github.token || process.env.GITHUB_TOKEN;
       
       if (!token) {
         throw new Error('GitHub token not provided');
       }
       
       this.octokit = new Octokit({
-        auth: token
+        auth: token,
+        baseUrl: this.options.baseUrl || config.github.apiUrl
       });
       
       // Verify authentication
@@ -43,16 +52,21 @@ class GitHubEnhanced {
       this.authenticated = true;
       return true;
     } catch (error) {
-      logger.error(`GitHub authentication failed: ${error.message}`);
+      logger.logError('GitHub authentication failed', error);
       this.authenticated = false;
-      return false;
+      throw error;
     }
   }
   
   /**
    * Add a PR to the analysis queue
    * @param {Object} prData - Pull request data
+   * @param {string} prData.owner - Repository owner
+   * @param {string} prData.repo - Repository name
+   * @param {number} prData.pull_number - Pull request number
+   * @param {boolean} [prData.autoMerge=false] - Whether to auto-merge if analysis passes
    * @returns {boolean} Success status
+   * @throws {Error} If required parameters are missing
    */
   addPrToAnalysisQueue(prData) {
     try {
@@ -91,19 +105,21 @@ class GitHubEnhanced {
       
       return true;
     } catch (error) {
-      logger.error(`Failed to add PR to analysis queue: ${error.message}`);
-      return false;
+      logger.logError('Failed to add PR to analysis queue', error);
+      throw error;
     }
   }
   
   /**
    * Process the PR analysis queue
    * @returns {Promise<Object>} Processing results
+   * @throws {Error} If not authenticated
    */
   async processAnalysisQueue() {
     if (!this.authenticated) {
-      logger.warn('Cannot process PR analysis queue: Not authenticated with GitHub');
-      return { success: false, error: 'Not authenticated with GitHub' };
+      const error = new Error('Cannot process PR analysis queue: Not authenticated with GitHub');
+      logger.warn(error.message);
+      throw error;
     }
     
     if (this.prAnalysisQueue.length === 0) {
@@ -160,7 +176,7 @@ class GitHubEnhanced {
           error: error.message
         });
         
-        logger.error(`Failed to analyze PR: ${prData.owner}/${prData.repo}#${prData.pull_number} - ${error.message}`);
+        logger.logError(`Failed to analyze PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`, error);
       }
     }
     
@@ -173,10 +189,23 @@ class GitHubEnhanced {
   /**
    * Analyze a pull request
    * @param {Object} prData - Pull request data
+   * @param {string} prData.owner - Repository owner
+   * @param {string} prData.repo - Repository name
+   * @param {number} prData.pull_number - Pull request number
    * @returns {Promise<Object>} Analysis result
+   * @throws {Error} If analysis fails
    */
   async analyzePR(prData) {
     try {
+      if (!this.authenticated) {
+        throw new Error('Not authenticated with GitHub');
+      }
+      
+      // Validate required fields
+      if (!prData.owner || !prData.repo || !prData.pull_number) {
+        throw new Error('Missing required PR data (owner, repo, pull_number)');
+      }
+      
       // Get PR details
       const { data: pr } = await this.octokit.pulls.get({
         owner: prData.owner,
@@ -225,7 +254,7 @@ class GitHubEnhanced {
       
       return analysis;
     } catch (error) {
-      logger.error(`Failed to analyze PR: ${error.message}`);
+      logger.logError('Failed to analyze PR', error);
       throw error;
     }
   }
@@ -238,9 +267,15 @@ class GitHubEnhanced {
   getFileExtensions(files) {
     const extensions = {};
     
+    if (!Array.isArray(files)) {
+      return extensions;
+    }
+    
     for (const file of files) {
-      const ext = file.filename.split('.').pop().toLowerCase();
-      extensions[ext] = (extensions[ext] || 0) + 1;
+      if (file.filename) {
+        const ext = file.filename.split('.').pop().toLowerCase();
+        extensions[ext] = (extensions[ext] || 0) + 1;
+      }
     }
     
     return extensions;
@@ -285,10 +320,20 @@ class GitHubEnhanced {
   /**
    * Add a PR to the merge queue
    * @param {Object} prData - Pull request data
+   * @param {string} prData.owner - Repository owner
+   * @param {string} prData.repo - Repository name
+   * @param {number} prData.pull_number - Pull request number
+   * @param {string} [prData.merge_method='merge'] - Merge method (merge, squash, rebase)
    * @returns {boolean} Success status
+   * @throws {Error} If required parameters are missing
    */
   addToMergeQueue(prData) {
     try {
+      // Validate required fields
+      if (!prData.owner || !prData.repo || !prData.pull_number) {
+        throw new Error('Missing required PR data (owner, repo, pull_number)');
+      }
+      
       // Check if PR is already in queue
       const existingIndex = this.mergeQueue.findIndex(item => 
         item.owner === prData.owner && 
@@ -319,19 +364,21 @@ class GitHubEnhanced {
       
       return true;
     } catch (error) {
-      logger.error(`Failed to add PR to merge queue: ${error.message}`);
-      return false;
+      logger.logError('Failed to add PR to merge queue', error);
+      throw error;
     }
   }
   
   /**
    * Process the merge queue
    * @returns {Promise<Object>} Processing results
+   * @throws {Error} If not authenticated
    */
   async processMergeQueue() {
     if (!this.authenticated) {
-      logger.warn('Cannot process merge queue: Not authenticated with GitHub');
-      return { success: false, error: 'Not authenticated with GitHub' };
+      const error = new Error('Cannot process merge queue: Not authenticated with GitHub');
+      logger.warn(error.message);
+      throw error;
     }
     
     if (this.mergeQueue.length === 0) {
@@ -387,7 +434,7 @@ class GitHubEnhanced {
           error: error.message
         });
         
-        logger.error(`Failed to merge PR: ${prData.owner}/${prData.repo}#${prData.pull_number} - ${error.message}`);
+        logger.logError(`Failed to merge PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`, error);
       }
     }
     
@@ -400,10 +447,26 @@ class GitHubEnhanced {
   /**
    * Merge a pull request
    * @param {Object} prData - Pull request data
+   * @param {string} prData.owner - Repository owner
+   * @param {string} prData.repo - Repository name
+   * @param {number} prData.pull_number - Pull request number
+   * @param {string} [prData.merge_method='merge'] - Merge method (merge, squash, rebase)
+   * @param {string} [prData.commit_title] - Custom commit title
+   * @param {string} [prData.commit_message] - Custom commit message
    * @returns {Promise<Object>} Merge result
+   * @throws {Error} If merge fails
    */
   async mergePR(prData) {
     try {
+      if (!this.authenticated) {
+        throw new Error('Not authenticated with GitHub');
+      }
+      
+      // Validate required fields
+      if (!prData.owner || !prData.repo || !prData.pull_number) {
+        throw new Error('Missing required PR data (owner, repo, pull_number)');
+      }
+      
       // Get latest PR data
       const { data: pr } = await this.octokit.pulls.get({
         owner: prData.owner,
@@ -428,18 +491,19 @@ class GitHubEnhanced {
       
       return mergeResult;
     } catch (error) {
-      logger.error(`Failed to merge PR: ${error.message}`);
+      logger.logError('Failed to merge PR', error);
       throw error;
     }
   }
   
   /**
    * Clean up completed items from queues
+   * @param {number} [hoursToKeep=24] - Hours to keep completed items
    */
-  cleanupQueue() {
-    // Keep only recent completed items (last 24 hours)
+  cleanupQueue(hoursToKeep = 24) {
+    // Keep only recent completed items
     const cutoff = new Date();
-    cutoff.setHours(cutoff.getHours() - 24);
+    cutoff.setHours(cutoff.getHours() - hoursToKeep);
     
     // Clean PR analysis queue
     this.prAnalysisQueue = this.prAnalysisQueue.filter(item => {
@@ -460,6 +524,8 @@ class GitHubEnhanced {
       const completedAt = new Date(item.completedAt || item.failedAt);
       return completedAt > cutoff;
     });
+    
+    logger.info(`Cleaned up queues. Analysis queue: ${this.prAnalysisQueue.length}, Merge queue: ${this.mergeQueue.length}`);
   }
 }
 

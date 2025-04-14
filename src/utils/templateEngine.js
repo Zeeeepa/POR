@@ -7,11 +7,16 @@ const Handlebars = require('handlebars');
 const fs = require('fs-extra');
 const path = require('path');
 const logger = require('./logger');
+const config = require('./config');
+const moment = require('moment');
 
 /**
  * Template engine for rendering templates with Handlebars
  */
 class TemplateEngine {
+  /**
+   * Initialize the template engine and register helpers
+   */
   constructor() {
     // Register custom helpers
     this.registerHelpers();
@@ -26,6 +31,10 @@ class TemplateEngine {
       if (!date) return '';
       
       try {
+        if (typeof moment === 'function') {
+          return moment(date).format(format || 'YYYY-MM-DD HH:mm:ss');
+        }
+        
         const dateObj = new Date(date);
         
         // Simple format implementation
@@ -37,7 +46,7 @@ class TemplateEngine {
           return dateObj.toISOString();
         }
       } catch (error) {
-        logger.error(`Error formatting date: ${error.message}`);
+        logger.logError('Error formatting date', error);
         return date;
       }
     });
@@ -74,20 +83,42 @@ class TemplateEngine {
     Handlebars.registerHelper('json', function(context) {
       return JSON.stringify(context, null, 2);
     });
+    
+    // Environment check helper
+    Handlebars.registerHelper('ifEnv', function(env, options) {
+      return (config.server.env === env) ? options.fn(this) : options.inverse(this);
+    });
+    
+    // Array length helper
+    Handlebars.registerHelper('length', function(array) {
+      return Array.isArray(array) ? array.length : 0;
+    });
+    
+    // Truncate text helper
+    Handlebars.registerHelper('truncate', function(text, length) {
+      if (!text) return '';
+      if (text.length <= length) return text;
+      return text.substring(0, length) + '...';
+    });
   }
   
   /**
    * Render a template string with variables
    * @param {string} templateString - Template string to render
-   * @param {Object} variables - Variables to use in template
+   * @param {Object} [variables={}] - Variables to use in template
    * @returns {string} Rendered template
+   * @throws {Error} If rendering fails
    */
   renderString(templateString, variables = {}) {
     try {
+      if (!templateString || typeof templateString !== 'string') {
+        throw new Error('Template string must be a non-empty string');
+      }
+      
       const template = Handlebars.compile(templateString);
       return template(variables);
     } catch (error) {
-      logger.error(`Failed to render template string: ${error.message}`);
+      logger.logError('Failed to render template string', error);
       throw error;
     }
   }
@@ -95,15 +126,24 @@ class TemplateEngine {
   /**
    * Render a template file with variables
    * @param {string} templatePath - Path to template file
-   * @param {Object} variables - Variables to use in template
+   * @param {Object} [variables={}] - Variables to use in template
    * @returns {Promise<string>} Rendered template
+   * @throws {Error} If rendering fails
    */
   async renderFile(templatePath, variables = {}) {
     try {
+      if (!templatePath || typeof templatePath !== 'string') {
+        throw new Error('Template path must be a non-empty string');
+      }
+      
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Template file not found: ${templatePath}`);
+      }
+      
       const templateString = await fs.readFile(templatePath, 'utf8');
       return this.renderString(templateString, variables);
     } catch (error) {
-      logger.error(`Failed to render template file: ${error.message}`);
+      logger.logError(`Failed to render template file: ${templatePath}`, error);
       throw error;
     }
   }
@@ -112,18 +152,33 @@ class TemplateEngine {
    * Render a template file and save to destination
    * @param {string} templatePath - Path to template file
    * @param {string} destPath - Destination path
-   * @param {Object} variables - Variables to use in template
+   * @param {Object} [variables={}] - Variables to use in template
    * @returns {Promise<boolean>} Success status
+   * @throws {Error} If rendering or saving fails
    */
   async renderToFile(templatePath, destPath, variables = {}) {
     try {
+      if (!templatePath || typeof templatePath !== 'string') {
+        throw new Error('Template path must be a non-empty string');
+      }
+      
+      if (!destPath || typeof destPath !== 'string') {
+        throw new Error('Destination path must be a non-empty string');
+      }
+      
       const rendered = await this.renderFile(templatePath, variables);
+      
+      // Ensure destination directory exists
+      const destDir = path.dirname(destPath);
+      await fs.ensureDir(destDir);
+      
+      // Write rendered content to file
       await fs.writeFile(destPath, rendered);
       logger.info(`Rendered template to: ${destPath}`);
       return true;
     } catch (error) {
-      logger.error(`Failed to render template to file: ${error.message}`);
-      return false;
+      logger.logError(`Failed to render template to file: ${destPath}`, error);
+      throw error;
     }
   }
 }
