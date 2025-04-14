@@ -9,7 +9,8 @@ const WorkflowManager = require('./WorkflowManager');
 const MultiProjectManager = require('./MultiProjectManager');
 const MessageQueueManager = require('./MessageQueueManager');
 const GitHubEnhanced = require('../utils/GitHubEnhanced');
-const ConfigManager = require('../framework').ConfigManager;
+const CursorAutomation = require('../utils/CursorAutomation');
+const ConfigManager = require('../framework/ConfigManager');
 const logger = require('../utils/logger');
 
 class DeplaEnhanced {
@@ -26,6 +27,9 @@ class DeplaEnhanced {
     this.multiProjectManager = new MultiProjectManager(this.config);
     this.messageQueueManager = new MessageQueueManager(this.config);
     this.gitHubEnhanced = new GitHubEnhanced(this.config);
+    
+    // Set cursor automation for message queue manager
+    this.messageQueueManager.setCursorAutomation(CursorAutomation);
     
     // Setup state
     this.isInitialized = false;
@@ -101,8 +105,18 @@ class DeplaEnhanced {
       logger.error(`Message failed: ${message.id}`);
     });
     
-    // GitHub events (would typically be handled by webhook server)
-    // Just placeholders for demonstration
+    // Workflow events
+    this.workflowManager.on('workflowCompleted', (data) => {
+      logger.info(`Workflow completed: ${data.workflowId} for project ${data.projectId}`);
+    });
+    
+    this.workflowManager.on('workflowFailed', (data) => {
+      logger.error(`Workflow failed: ${data.workflowId} for project ${data.projectId} - ${data.error}`);
+    });
+    
+    this.workflowManager.on('phaseCompleted', (data) => {
+      logger.info(`Phase completed: ${data.phase.name} for workflow ${data.workflowId}`);
+    });
   }
   
   /**
@@ -263,7 +277,7 @@ class DeplaEnhanced {
    */
   async captureCursorPosition(name) {
     try {
-      const position = this.messageQueueManager.cursorAutomation.captureCurrentPosition(name);
+      const position = CursorAutomation.captureCurrentPosition(name);
       return { success: true, position };
     } catch (error) {
       logger.error(`Failed to capture cursor position: ${error.message}`);
@@ -505,7 +519,8 @@ class DeplaEnhanced {
       isProcessing: this.isProcessingAutomation,
       prAnalysisQueue: this.gitHubEnhanced.prAnalysisQueue.length,
       mergeQueue: this.gitHubEnhanced.mergeQueue.length,
-      messageQueue: this.getQueueStatus()
+      messageQueue: this.getQueueStatus(),
+      activeWorkflows: this.workflowManager.getAllExecutions().length
     };
   }
   
@@ -540,4 +555,4 @@ class DeplaEnhanced {
   }
 }
 
-module.exports = DeplaEnhanced; 
+module.exports = DeplaEnhanced;
