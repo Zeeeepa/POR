@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github.min.css">
+  <style>
+    .navbar-brand i {
+      margin-right: 8px;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #6c757d 0%, #343a40 100%);
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+    .event-badge {
+      font-size: 1rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 50px;
+    }
+    .event-meta {
+      background-color: #f8f9fa;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .event-meta-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .event-meta-item i {
+      width: 24px;
+      margin-right: 10px;
+      color: #6c757d;
+    }
+    .event-payload {
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .event-payload pre {
+      margin: 0;
+      padding: 1.5rem;
+      max-height: 600px;
+      overflow: auto;
+    }
+    .hljs {
+      background: #f8f9fa;
+      padding: 1.5rem;
+    }
+    .payload-header {
+      background-color: #f1f3f5;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #dee2e6;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .payload-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .action-btn {
+      border-radius: 50px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/dashboard">
+        <i class="bi bi-git"></i>Webhook Dashboard
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard">
+              <i class="bi bi-house-door"></i> Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard/events">
+              <i class="bi bi-list-ul"></i> All Events
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/health" target="_blank">
+              <i class="bi bi-heart-pulse"></i> Health Check
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Section -->
+  <header class="page-header">
+    <div class="container text-center">
+      <span class="badge <%= getBadgeColor(event.type) %> event-badge mb-2">
+        <%= event.type.toUpperCase() %>
+      </span>
+      <h1><%= event.summary %></h1>
+      <p class="lead">
+        <i class="bi bi-clock"></i> <%= moment(event.timestamp).format('MMMM Do YYYY, h:mm:ss a') %>
+      </p>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Event Metadata -->
+    <section class="event-meta">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="event-meta-item">
+            <i class="bi bi-tag"></i>
+            <span><strong>Event Type:</strong> <%= event.type %></span>
+          </div>
+          <% if (event.action) { %>
+          <div class="event-meta-item">
+            <i class="bi bi-lightning"></i>
+            <span><strong>Action:</strong> <%= event.action %></span>
+          </div>
+          <% } %>
+          <div class="event-meta-item">
+            <i class="bi bi-clock-history"></i>
+            <span><strong>Received:</strong> <%= moment(event.timestamp).fromNow() %></span>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <% if (event.repository) { %>
+          <div class="event-meta-item">
+            <i class="bi bi-github"></i>
+            <span><strong>Repository:</strong> <%= event.repository %></span>
+          </div>
+          <% } %>
+          <% if (event.sender) { %>
+          <div class="event-meta-item">
+            <i class="bi bi-person"></i>
+            <span><strong>Sender:</strong> <%= event.sender %></span>
+          </div>
+          <% } %>
+          <div class="event-meta-item">
+            <i class="bi bi-hash"></i>
+            <span><strong>Event ID:</strong> <%= event.id %></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Buttons -->
+    <div class="d-flex justify-content-between mb-4">
+      <a href="/dashboard/events" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Events
+      </a>
+      <div>
+        <button id="btnCopy" class="btn btn-outline-primary me-2" onclick="copyPayload()">
+          <i class="bi bi-clipboard"></i> Copy Payload
+        </button>
+        <a href="/dashboard" class="btn btn-outline-dark">
+          <i class="bi bi-house"></i> Dashboard
+        </a>
+      </div>
+    </div>
+
+    <!-- Event Payload -->
+    <section class="mb-5">
+      <div class="event-payload">
+        <div class="payload-header">
+          <span>
+            <i class="bi bi-code-square"></i> Event Payload
+          </span>
+          <div class="payload-actions">
+            <button class="btn btn-sm btn-outline-secondary action-btn" onclick="toggleExpand()">
+              <i class="bi bi-arrows-angle-expand" id="expandIcon"></i>
+              <span id="expandText">Expand</span>
+            </button>
+            <button class="btn btn-sm btn-outline-primary action-btn" onclick="copyPayload()">
+              <i class="bi bi-clipboard"></i> Copy
+            </button>
+          </div>
+        </div>
+        <pre><code class="language-json" id="payloadCode"><%= beautifyJson(event.payload) %></code></pre>
+      </div>
+    </section>
+  </div>
+
+  <footer class="bg-dark text-center text-white py-4 mt-5">
+    <div class="container">
+      <p class="mb-0">GitHub Webhook Dashboard</p>
+      <small class="d-block text-muted">Version 1.0.0</small>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/core.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/languages/json.min.js"></script>
+  <script>
+    // Initialize syntax highlighting
+    document.addEventListener('DOMContentLoaded', () => {
+      hljs.highlightAll();
+    });
+    
+    // Copy payload to clipboard
+    function copyPayload() {
+      const payloadText = document.getElementById('payloadCode').textContent;
+      navigator.clipboard.writeText(payloadText)
+        .then(() => {
+          const btnCopy = document.getElementById('btnCopy');
+          btnCopy.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+          btnCopy.classList.remove('btn-outline-primary');
+          btnCopy.classList.add('btn-success');
+          
+          setTimeout(() => {
+            btnCopy.innerHTML = '<i class="bi bi-clipboard"></i> Copy Payload';
+            btnCopy.classList.remove('btn-success');
+            btnCopy.classList.add('btn-outline-primary');
+          }, 2000);
+        })
+        .catch(err => {
+          console.error('Failed to copy: ', err);
+          alert('Failed to copy payload');
+        });
+    }
+    
+    // Toggle payload height
+    let expanded = false;
+    function toggleExpand() {
+      const preElement = document.querySelector('.event-payload pre');
+      const expandIcon = document.getElementById('expandIcon');
+      const expandText = document.getElementById('expandText');
+      
+      if (expanded) {
+        preElement.style.maxHeight = '600px';
+        expandIcon.classList.remove('bi-arrows-angle-contract');
+        expandIcon.classList.add('bi-arrows-angle-expand');
+        expandText.textContent = 'Expand';
+      } else {
+        preElement.style.maxHeight = 'none';
+        expandIcon.classList.remove('bi-arrows-angle-expand');
+        expandIcon.classList.add('bi-arrows-angle-contract');
+        expandText.textContent = 'Collapse';
+      }
+      
+      expanded = !expanded;
+    }
+    
+    function getBadgeColor(type) {
+      const colors = {
+        'push': 'bg-primary',
+        'pull_request': 'bg-success',
+        'issues': 'bg-warning',
+        'issue_comment': 'bg-info',
+        'workflow_run': 'bg-secondary',
+      };
+      return colors[type] || 'bg-dark';
+    }
+  </script>
+</body>
+</html> 

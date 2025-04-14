@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <style>
+    .event-card {
+      transition: all 0.2s;
+    }
+    .event-card:hover {
+      background-color: rgba(0,123,255,0.1);
+    }
+    .event-type-badge {
+      width: 100px;
+    }
+    .navbar-brand i {
+      margin-right: 8px;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #0275d8 0%, #6f42c1 100%);
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+    .table-hover tbody tr:hover {
+      background-color: rgba(0,123,255,0.05);
+    }
+    .filter-form .form-control, .filter-form .btn {
+      border-radius: 20px;
+    }
+    .filter-form .form-control {
+      border-color: #dee2e6;
+    }
+    .filter-form .form-control:focus {
+      box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/dashboard">
+        <i class="bi bi-git"></i>Webhook Dashboard
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard">
+              <i class="bi bi-house-door"></i> Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="/dashboard/events">
+              <i class="bi bi-list-ul"></i> All Events
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/health" target="_blank">
+              <i class="bi bi-heart-pulse"></i> Health Check
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Section -->
+  <header class="page-header">
+    <div class="container text-center">
+      <h1><i class="bi bi-list-ul"></i> Webhook Events</h1>
+      <p class="lead">All received webhook events</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Filter Section -->
+    <section class="mb-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-funnel"></i> Filter Events
+          </h5>
+          <form class="row g-3 filter-form" action="/dashboard/events" method="GET">
+            <div class="col-md-4">
+              <label for="eventType" class="form-label">Event Type</label>
+              <select class="form-select" id="eventType" name="type">
+                <option value="">All Types</option>
+                <option value="push" <%= filters.type === 'push' ? 'selected' : '' %>>Push</option>
+                <option value="pull_request" <%= filters.type === 'pull_request' ? 'selected' : '' %>>Pull Request</option>
+                <option value="issues" <%= filters.type === 'issues' ? 'selected' : '' %>>Issues</option>
+                <option value="issue_comment" <%= filters.type === 'issue_comment' ? 'selected' : '' %>>Issue Comment</option>
+                <option value="workflow_run" <%= filters.type === 'workflow_run' ? 'selected' : '' %>>Workflow Run</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label for="repository" class="form-label">Repository</label>
+              <input type="text" class="form-control" id="repository" name="repo" placeholder="Repository name" value="<%= filters.repo || '' %>">
+            </div>
+            <div class="col-md-2">
+              <label for="limit" class="form-label">Limit</label>
+              <select class="form-select" id="limit" name="limit">
+                <option value="25" <%= filters.limit == 25 ? 'selected' : '' %>>25</option>
+                <option value="50" <%= filters.limit == 50 ? 'selected' : '' %>>50</option>
+                <option value="100" <%= filters.limit == 100 ? 'selected' : '' %>>100</option>
+              </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <div class="d-grid gap-2 w-100">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-search"></i> Filter
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Events Table Section -->
+    <section class="mb-5">
+      <div class="card">
+        <div class="card-body p-0">
+          <% if (events.length === 0) { %>
+            <div class="text-center py-5 text-muted">
+              <i class="bi bi-inbox fs-1"></i>
+              <p class="mt-2">No matching events found</p>
+              <a href="/dashboard/events" class="btn btn-outline-primary mt-2">Clear Filters</a>
+            </div>
+          <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Type</th>
+                    <th>Repository</th>
+                    <th>Sender</th>
+                    <th>Summary</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% events.forEach(event => { %>
+                    <tr class="event-card">
+                      <td>
+                        <span class="badge <%= getBadgeColor(event.type) %> event-type-badge">
+                          <%= event.type %>
+                        </span>
+                      </td>
+                      <td><%= event.repository || 'N/A' %></td>
+                      <td><%= event.sender || 'N/A' %></td>
+                      <td><%= event.summary %></td>
+                      <td>
+                        <span title="<%= event.timestamp %>">
+                          <%= moment(event.timestamp).fromNow() %>
+                        </span>
+                      </td>
+                      <td>
+                        <a href="/dashboard/events/<%= event.id %>" class="btn btn-sm btn-outline-secondary">
+                          <i class="bi bi-eye"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+            <!-- Show count of displayed events -->
+            <div class="text-center text-muted py-2 border-top">
+              Showing <%= events.length %> event<%= events.length !== 1 ? 's' : '' %>
+              <% if (filters.type || filters.repo) { %>
+                <span class="mx-1">|</span> <a href="/dashboard/events" class="text-decoration-none">Clear Filters</a>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="bg-dark text-center text-white py-4 mt-5">
+    <div class="container">
+      <p class="mb-0">GitHub Webhook Dashboard</p>
+      <small class="d-block text-muted">Version 1.0.0</small>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function getBadgeColor(type) {
+      const colors = {
+        'push': 'bg-primary',
+        'pull_request': 'bg-success',
+        'issues': 'bg-warning',
+        'issue_comment': 'bg-info',
+        'workflow_run': 'bg-secondary',
+      };
+      return colors[type] || 'bg-dark';
+    }
+    
+    // Auto-refresh the page every 30 seconds
+    setTimeout(() => {
+      window.location.reload();
+    }, 30000);
+  </script>
+</body>
+</html> 

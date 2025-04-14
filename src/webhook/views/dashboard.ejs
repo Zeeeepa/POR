@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <style>
+    .stat-card {
+      transition: transform 0.2s ease-in-out;
+    }
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .event-card {
+      transition: all 0.2s;
+    }
+    .event-card:hover {
+      background-color: rgba(0,123,255,0.1);
+    }
+    .event-type-badge {
+      width: 100px;
+    }
+    .navbar-brand i {
+      margin-right: 8px;
+    }
+    .dashboard-header {
+      background: linear-gradient(135deg, #6f42c1 0%, #0275d8 100%);
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+    .server-info-pill {
+      font-size: 0.8rem;
+      padding: 0.25rem 0.5rem;
+    }
+    .stats-container {
+      margin-bottom: 2rem;
+    }
+    .table-hover tbody tr:hover {
+      background-color: rgba(0,123,255,0.05);
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/dashboard">
+        <i class="bi bi-git"></i>Webhook Dashboard
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="/dashboard">
+              <i class="bi bi-house-door"></i> Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard/events">
+              <i class="bi bi-list-ul"></i> All Events
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/health" target="_blank">
+              <i class="bi bi-heart-pulse"></i> Health Check
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Section -->
+  <header class="dashboard-header">
+    <div class="container text-center">
+      <h1><i class="bi bi-git"></i> GitHub Webhook Dashboard</h1>
+      <p class="lead">Monitor and manage your webhook events</p>
+      
+      <!-- Server Status -->
+      <div class="d-flex justify-content-center gap-2 mt-3">
+        <span class="badge bg-info server-info-pill">
+          <i class="bi bi-hdd-rack"></i> Port: <%= serverInfo.port %>
+        </span>
+        <span class="badge <%= serverInfo.isNgrokActive ? 'bg-success' : 'bg-secondary' %> server-info-pill">
+          <i class="bi bi-globe"></i> <%= serverInfo.isNgrokActive ? 'ngrok Active' : 'Local Only' %>
+        </span>
+        <span class="badge bg-primary server-info-pill">
+          <i class="bi bi-clock"></i> Uptime: <%= Math.floor(serverInfo.uptime / 60) %>m <%= Math.floor(serverInfo.uptime % 60) %>s
+        </span>
+        <a href="<%= serverInfo.webhookUrl %>" target="_blank" class="badge bg-light text-dark text-decoration-none server-info-pill">
+          <i class="bi bi-link-45deg"></i> <%= serverInfo.webhookUrl %>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Stats Section -->
+    <section class="stats-container">
+      <div class="row">
+        <div class="col-md-4 mb-4">
+          <div class="card bg-primary text-white h-100 stat-card">
+            <div class="card-body text-center">
+              <i class="bi bi-envelope-check fs-1"></i>
+              <h5 class="card-title mt-2">Total Events</h5>
+              <h2 class="display-5"><%= stats.total %></h2>
+            </div>
+            <div class="card-footer text-center">
+              <a href="/dashboard/events" class="text-white">View All Events</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="card bg-success text-white h-100 stat-card">
+            <div class="card-body text-center">
+              <i class="bi bi-diagram-3 fs-1"></i>
+              <h5 class="card-title mt-2">Event Types</h5>
+              <h2 class="display-5"><%= Object.keys(stats.byType).length %></h2>
+            </div>
+            <div class="card-footer">
+              <div class="d-flex flex-wrap justify-content-center gap-1">
+                <% Object.entries(stats.byType).slice(0, 3).forEach(([type, count]) => { %>
+                  <span class="badge bg-light text-dark"><%= type %>: <%= count %></span>
+                <% }) %>
+                <% if (Object.keys(stats.byType).length > 3) { %>
+                  <span class="badge bg-light text-dark">+<%= Object.keys(stats.byType).length - 3 %> more</span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="card bg-info text-white h-100 stat-card">
+            <div class="card-body text-center">
+              <i class="bi bi-git fs-1"></i>
+              <h5 class="card-title mt-2">Repositories</h5>
+              <h2 class="display-5"><%= Object.keys(stats.byRepo).length %></h2>
+            </div>
+            <div class="card-footer">
+              <div class="d-flex flex-wrap justify-content-center gap-1">
+                <% Object.entries(stats.byRepo).slice(0, 2).forEach(([repo, count]) => { %>
+                  <span class="badge bg-light text-dark"><%= repo.split('/')[1] || repo %>: <%= count %></span>
+                <% }) %>
+                <% if (Object.keys(stats.byRepo).length > 2) { %>
+                  <span class="badge bg-light text-dark">+<%= Object.keys(stats.byRepo).length - 2 %> more</span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Events Section -->
+    <section class="mb-5">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-clock-history"></i> Recent Events</h2>
+        <a href="/dashboard/events" class="btn btn-outline-primary btn-sm">
+          View All Events
+        </a>
+      </div>
+      
+      <div class="card">
+        <div class="card-body p-0">
+          <% if (recentEvents.length === 0) { %>
+            <div class="text-center py-5 text-muted">
+              <i class="bi bi-inbox fs-1"></i>
+              <p class="mt-2">No events received yet</p>
+            </div>
+          <% } else { %>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Type</th>
+                    <th>Repository</th>
+                    <th>Summary</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% recentEvents.forEach(event => { %>
+                    <tr class="event-card">
+                      <td>
+                        <span class="badge <%= getBadgeColor(event.type) %> event-type-badge">
+                          <%= event.type %>
+                        </span>
+                      </td>
+                      <td><%= event.repository || 'N/A' %></td>
+                      <td><%= event.summary %></td>
+                      <td><%= moment(event.timestamp).fromNow() %></td>
+                      <td>
+                        <a href="/dashboard/events/<%= event.id %>" class="btn btn-sm btn-outline-secondary">
+                          <i class="bi bi-eye"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="bg-dark text-center text-white py-4 mt-5">
+    <div class="container">
+      <p class="mb-0">GitHub Webhook Dashboard</p>
+      <small class="d-block text-muted">Version 1.0.0</small>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function getBadgeColor(type) {
+      const colors = {
+        'push': 'bg-primary',
+        'pull_request': 'bg-success',
+        'issues': 'bg-warning',
+        'issue_comment': 'bg-info',
+        'workflow_run': 'bg-secondary',
+      };
+      return colors[type] || 'bg-dark';
+    }
+    
+    // Auto-refresh the page every 30 seconds
+    setTimeout(() => {
+      window.location.reload();
+    }, 30000);
+  </script>
+</body>
+</html> 
