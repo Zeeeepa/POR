@@ -1,29 +1,21 @@
-# GitHub Webhook Server
+# Webhook Module
 
-A JavaScript implementation for handling GitHub webhooks with automatic ngrok tunnel setup for local development and a built-in dashboard for monitoring.
+A robust and flexible webhook server for handling GitHub events with built-in dashboard for monitoring.
 
 ## Features
 
-- Express server for handling GitHub webhook events
-- Automatic ngrok tunnel setup for exposing local server to the internet
-- GitHub webhook signature validation for security
-- Support for multiple GitHub event types (push, pull_request, issues, etc.)
-- Programmatic webhook registration with GitHub API
-- Custom event handlers
-- **Web Dashboard for monitoring webhook events**
+- **Secure Webhook Processing**: Validates GitHub webhook signatures for security
+- **Flexible Event Handling**: Register custom handlers for different GitHub events
+- **Ngrok Integration**: Easily expose local server to the internet for testing
+- **Dashboard UI**: Monitor webhook activity with a web-based dashboard
+- **Error Handling**: Comprehensive error handling with detailed logging
+- **Validation**: Input validation for all parameters
+- **API Endpoints**: RESTful API for accessing webhook data
 
 ## Installation
 
-Ensure you have the following dependencies in your project:
-
 ```bash
-npm install express body-parser axios crypto ngrok ejs moment chart.js @octokit/rest
-```
-
-For development, you may also want:
-
-```bash
-npm install dotenv nodemon --save-dev
+npm install
 ```
 
 ## Configuration
@@ -33,115 +25,134 @@ Create a `.env` file with the following variables:
 ```
 PORT=3000
 GITHUB_WEBHOOK_SECRET=your_webhook_secret
-GITHUB_TOKEN=your_github_personal_access_token
-NGROK_AUTH_TOKEN=your_ngrok_auth_token
-NGROK_REGION=us
-GITHUB_OWNER=your_github_username_or_org
-GITHUB_REPO=your_repository_name
+GITHUB_TOKEN=your_github_token
+NGROK_AUTH_TOKEN=your_ngrok_token
+GITHUB_OWNER=your_github_username
+GITHUB_REPO=your_repo_name
 ```
 
 ## Usage
 
-See the `example-detailed.js` file for a complete implementation. Here's a quick overview:
+### Basic Usage
 
 ```javascript
 const WebhookServer = require('./webhookServer');
 const setupDashboard = require('./dashboard');
 
-// Initialize the server
+// Initialize the webhook server
 const webhookServer = new WebhookServer({
   port: 3000,
   webhookSecret: 'your_webhook_secret',
-  githubToken: 'your_github_token',
-  ngrokOptions: {
-    authtoken: 'your_ngrok_auth_token',
-    region: 'us'
-  }
+  githubToken: 'your_github_token'
 });
 
-// Set up the dashboard
-setupDashboard(webhookServer.app, webhookServer);
-
-// Register custom event handlers
-webhookServer.registerEventHandler('issues', async (payload) => {
-  console.log(`Issue ${payload.action}: #${payload.issue.number}`);
+// Register event handlers
+webhookServer.registerEventHandler('push', async (payload) => {
+  console.log(`Received push to ${payload.repository.full_name}`);
+  // Handle push event
 });
 
-// Start the server with ngrok tunnel
-async function start() {
-  const result = await webhookServer.start(true);
-  console.log(`Webhook URL: ${result.url}`);
-  console.log(`Dashboard URL: ${result.url}/dashboard`);
-  
-  // Set up GitHub webhook automatically
-  await webhookServer.setupWebhook({
-    owner: 'your_username',
-    repo: 'your_repo',
-    events: ['push', 'pull_request', 'issues']
+// Start the server
+webhookServer.start(true) // true to use ngrok
+  .then(serverInfo => {
+    console.log(`Webhook URL: ${serverInfo.url}`);
   });
-}
 
-start();
+// Set up dashboard (optional)
+const express = require('express');
+const app = express();
+const dashboard = setupDashboard(app, webhookServer);
+
+// Start dashboard server
+app.listen(3001, () => {
+  console.log(`Dashboard available at http://localhost:3001${dashboard.basePath}`);
+});
 ```
 
-## Web Dashboard
+### Setting Up a Webhook
 
-The webhook server includes a built-in web dashboard for monitoring webhook activity. The dashboard provides:
+```javascript
+// Set up webhook for a repository
+webhookServer.setupWebhook({
+  owner: 'username',
+  repo: 'repo-name',
+  events: ['push', 'pull_request', 'issues']
+})
+  .then(webhook => {
+    console.log(`Webhook created with ID: ${webhook.id}`);
+  })
+  .catch(error => {
+    console.error(`Failed to set up webhook: ${error.message}`);
+  });
+```
 
-- Real-time monitoring of webhook events
-- Detailed information for each event type
-- Filtering and searching capabilities
-- Event payload viewer with syntax highlighting
-- Statistics and visualizations
+## Components
 
-Access the dashboard at: `http://localhost:{PORT}/dashboard` or via your ngrok URL: `https://{NGROK_URL}/dashboard`
+### WebhookServer
 
-For more information about the dashboard, see [DASHBOARD.md](./DASHBOARD.md).
+The main server for handling GitHub webhooks.
+
+```javascript
+const server = new WebhookServer({
+  port: 3000,                    // Port to listen on
+  path: '/webhook',              // Path for webhook endpoint
+  webhookSecret: 'secret',       // GitHub webhook secret
+  githubToken: 'token',          // GitHub personal access token
+  ngrokOptions: {                // Options for ngrok
+    authtoken: 'ngrok_token'
+  }
+});
+```
+
+### Dashboard
+
+Web UI for monitoring webhook activity.
+
+```javascript
+const dashboard = setupDashboard(expressApp, webhookServer, '/dashboard');
+```
 
 ## API Reference
 
 ### WebhookServer
 
-```javascript
-const webhookServer = new WebhookServer(options);
-```
-
-Options:
-- `port`: Port to run the server on (default: 3000)
-- `webhookSecret`: GitHub webhook secret for signature validation
-- `githubToken`: GitHub personal access token for API calls
-- `ngrokOptions`: Configuration for ngrok tunnel (authtoken, region, etc.)
-
-### Methods
-
-- `start(useNgrok = false)`: Start the webhook server, optionally with ngrok tunnel
-- `stop()`: Stop the server and close ngrok tunnel
-- `registerEventHandler(event, handler)`: Register a custom event handler
-- `setupWebhook(options)`: Set up a GitHub webhook for a repository
-  - `options.owner`: Repository owner
-  - `options.repo`: Repository name
-  - `options.events`: Array of events to subscribe to
+- `constructor(options)`: Initialize the webhook server
+- `registerEventHandler(event, handler)`: Register a handler for a GitHub event
+- `start(useNgrok)`: Start the webhook server
+- `stop()`: Stop the webhook server
+- `setupWebhook(options)`: Configure a GitHub repository webhook
 
 ### Dashboard
 
+- `setupDashboard(app, webhookServer, basePath)`: Set up dashboard routes
+
+## Error Handling
+
+The module uses a standardized error handling approach:
+
 ```javascript
-const dashboard = setupDashboard(app, webhookServer, basePath = '/dashboard');
+try {
+  // Your code
+} catch (error) {
+  // Error will be properly logged and formatted
+  throw errorHandler.webhookError(`Failed to process event: ${error.message}`);
+}
 ```
 
-Parameters:
-- `app`: Express app instance (usually webhookServer.app)
-- `webhookServer`: WebhookServer instance
-- `basePath`: Base path for dashboard routes (default: '/dashboard')
+## Validation
 
-## Security Considerations
+All inputs are validated:
 
-- Always use a webhook secret to validate incoming requests
-- Store secrets in environment variables, not in code
-- Use HTTPS when possible (ngrok provides this automatically)
-- Validate the payload structure before processing events
+```javascript
+validation.isString(value, 'paramName');
+validation.isNumber(value, 'paramName', { min: 1, max: 100 });
+validation.isObject(value, 'paramName', { requiredProps: ['prop1', 'prop2'] });
+```
 
-## Examples
+## Example
 
-Check the following example files:
-- `example.js`: Basic implementation with minimal event handlers
-- `example-detailed.js`: Comprehensive implementation with detailed event handlers and dashboard integration 
+See `example.js` for a complete working example.
+
+## License
+
+MIT

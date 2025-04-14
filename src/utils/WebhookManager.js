@@ -7,14 +7,14 @@
 const { Octokit } = require('@octokit/rest');
 const logger = require('./logger');
 const config = require('./config');
-const crypto = require('crypto');
+const validation = require('./validation');
+const errorHandler = require('./errorHandler');
 
 class WebhookManager {
   /**
    * Initialize the webhook manager
    * @param {string} [githubToken] - GitHub personal access token
    * @param {string} [webhookUrl] - URL for the webhook
-   * @throws {Error} If required parameters are missing
    */
   constructor(githubToken, webhookUrl) {
     this.githubToken = githubToken || config.github.token;
@@ -38,7 +38,7 @@ class WebhookManager {
   async getAllRepositories() {
     try {
       if (!this.githubToken) {
-        throw new Error('GitHub token is required to fetch repositories');
+        throw errorHandler.authenticationError('GitHub token is required to fetch repositories');
       }
       
       logger.info("Fetching all accessible repositories");
@@ -52,8 +52,17 @@ class WebhookManager {
       logger.info(`Found ${repos.length} repositories`);
       return repos;
     } catch (error) {
-      logger.logError('Error fetching repositories', error);
-      throw error;
+      if (error.name === errorHandler.ErrorTypes.AUTHENTICATION) {
+        throw error;
+      }
+      
+      const enhancedError = errorHandler.externalServiceError(
+        'Error fetching repositories from GitHub',
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -65,15 +74,9 @@ class WebhookManager {
    */
   async listWebhooks(repoFullName) {
     try {
-      if (!repoFullName || typeof repoFullName !== 'string' || !repoFullName.includes('/')) {
-        throw new Error('Invalid repository name format. Expected "owner/repo"');
-      }
+      validation.isRepoName(repoFullName, 'repoFullName');
       
       const [owner, repo] = repoFullName.split('/');
-      
-      if (!owner || !repo) {
-        throw new Error('Invalid repository name format. Expected "owner/repo"');
-      }
       
       logger.info(`Listing webhooks for ${repoFullName}`);
       
@@ -84,12 +87,16 @@ class WebhookManager {
       
       return hooks;
     } catch (error) {
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
       if (error.status === 404) {
         logger.warn(`Repository not found or no access to webhooks for ${repoFullName}`);
         return [];
       }
       
-      logger.logError(`Error listing webhooks for ${repoFullName}`, error);
+      logger.error(`Error listing webhooks for ${repoFullName}`, { error: error.stack });
       return [];
     }
   }
@@ -101,6 +108,8 @@ class WebhookManager {
    */
   async findPRReviewWebhook(repoFullName) {
     try {
+      validation.isRepoName(repoFullName, 'repoFullName');
+      
       const hooks = await this.listWebhooks(repoFullName);
       
       for (const hook of hooks) {
@@ -111,7 +120,11 @@ class WebhookManager {
       
       return null;
     } catch (error) {
-      logger.logError(`Error finding PR review webhook for ${repoFullName}`, error);
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
+      logger.error(`Error finding PR review webhook for ${repoFullName}`, { error: error.stack });
       return null;
     }
   }
@@ -127,23 +140,17 @@ class WebhookManager {
    */
   async createWebhook(repoFullName, options = {}) {
     try {
-      if (!repoFullName || typeof repoFullName !== 'string' || !repoFullName.includes('/')) {
-        throw new Error('Invalid repository name format. Expected "owner/repo"');
-      }
+      validation.isRepoName(repoFullName, 'repoFullName');
       
       if (!this.webhookUrl) {
-        throw new Error('Webhook URL is required to create a webhook');
+        throw errorHandler.validationError('Webhook URL is required to create a webhook');
       }
       
       const [owner, repo] = repoFullName.split('/');
       
-      if (!owner || !repo) {
-        throw new Error('Invalid repository name format. Expected "owner/repo"');
-      }
-      
       logger.info(`Creating webhook for ${repoFullName}`);
       
-      const config = {
+      const webhookConfig = {
         url: this.webhookUrl,
         content_type: 'json',
         insecure_ssl: '0'
@@ -151,13 +158,13 @@ class WebhookManager {
       
       // Add secret if provided
       if (options.secret || config.github.webhookSecret) {
-        config.secret = options.secret || config.github.webhookSecret;
+        webhookConfig.secret = options.secret || config.github.webhookSecret;
       }
       
       const { data: hook } = await this.octokit.repos.createWebhook({
         owner,
         repo,
-        config,
+        config: webhookConfig,
         events: options.events || ['pull_request', 'repository'],
         active: true
       });
@@ -165,6 +172,10 @@ class WebhookManager {
       logger.info(`Webhook created successfully for ${repoFullName}`);
       return hook;
     } catch (error) {
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
       const errorMessage = `Error creating webhook for ${repoFullName}: ${error.message}`;
       logger.error(errorMessage);
       
@@ -188,23 +199,11 @@ class WebhookManager {
    */
   async updateWebhookUrl(repoFullName, hookId, newUrl) {
     try {
-      if (!repoFullName || typeof repoFullName !== 'string' || !repoFullName.includes('/')) {
-        throw new Error('Invalid repository name format. Expected "owner/repo"');
-      }
-      
-      if (!hookId || typeof hookId !== 'number') {
-        throw new Error('Invalid hook ID');
-      }
-      
-      if (!newUrl || typeof newUrl !== 'string') {
-        throw new Error('Invalid webhook URL');
-      }
+      validation.isRepoName(repoFullName, 'repoFullName');
+      validation.isNumber(hookId, 'hookId', { min: 1 });
+      validation.isUrl(newUrl, 'newUrl');
       
       const [owner, repo] = repoFullName.split('/');
-      
-      if (!owner || !repo) {
-        throw new Error('Invalid repository name format. Expected "owner/repo"');
-      }
       
       logger.info(`Updating webhook URL for ${repoFullName}`);
       
@@ -216,7 +215,7 @@ class WebhookManager {
       });
       
       // Create a new config with the updated URL
-      const config = {
+      const webhookConfig = {
         url: newUrl,
         content_type: 'json',
         insecure_ssl: '0',
@@ -228,7 +227,7 @@ class WebhookManager {
         owner,
         repo,
         hook_id: hookId,
-        config,
+        config: webhookConfig,
         events: hook.events,
         active: true
       });
@@ -236,7 +235,11 @@ class WebhookManager {
       logger.info(`Webhook URL updated successfully for ${repoFullName}`);
       return true;
     } catch (error) {
-      logger.logError(`Error updating webhook URL for ${repoFullName}`, error);
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
+      logger.error(`Error updating webhook URL for ${repoFullName}`, { error: error.stack });
       return false;
     }
   }
@@ -249,8 +252,10 @@ class WebhookManager {
    */
   async ensureWebhookExists(repoFullName, options = {}) {
     try {
+      validation.isRepoName(repoFullName, 'repoFullName');
+      
       if (!this.webhookUrl) {
-        throw new Error('Webhook URL is required to ensure webhook exists');
+        throw errorHandler.validationError('Webhook URL is required to ensure webhook exists');
       }
       
       // Check if webhook already exists
@@ -299,7 +304,14 @@ class WebhookManager {
         }
       }
     } catch (error) {
-      logger.logError(`Error ensuring webhook for ${repoFullName}`, error);
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        return { 
+          success: false, 
+          message: error.message 
+        };
+      }
+      
+      logger.error(`Error ensuring webhook for ${repoFullName}`, { error: error.stack });
       return { 
         success: false, 
         message: `Error: ${error.message}` 
@@ -318,7 +330,7 @@ class WebhookManager {
     
     try {
       if (!this.webhookUrl) {
-        throw new Error('Webhook URL is required to set up webhooks');
+        throw errorHandler.validationError('Webhook URL is required to set up webhooks');
       }
       
       const repos = await this.getAllRepositories();
@@ -334,7 +346,11 @@ class WebhookManager {
       
       return results;
     } catch (error) {
-      logger.logError('Error setting up webhooks for all repositories', error);
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
+      logger.error('Error setting up webhooks for all repositories', { error: error.stack });
       return { error: error.message };
     }
   }
@@ -349,13 +365,22 @@ class WebhookManager {
     logger.info(`Handling repository creation for ${repoName}`);
     
     try {
+      validation.isRepoName(repoName, 'repoName');
+      
       if (!this.webhookUrl) {
-        throw new Error('Webhook URL is required to handle repository creation');
+        throw errorHandler.validationError('Webhook URL is required to handle repository creation');
       }
       
       return await this.ensureWebhookExists(repoName, options);
     } catch (error) {
-      logger.logError(`Error handling repository creation for ${repoName}`, error);
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        return { 
+          success: false, 
+          message: error.message 
+        };
+      }
+      
+      logger.error(`Error handling repository creation for ${repoName}`, { error: error.stack });
       return { 
         success: false, 
         message: `Error: ${error.message}` 
@@ -372,20 +397,9 @@ class WebhookManager {
    */
   verifyWebhookSignature(signature, body, secret) {
     try {
-      if (!signature || !body || !secret) {
-        logger.warn('Missing required parameters for webhook signature verification');
-        return false;
-      }
-      
-      const hmac = crypto.createHmac('sha256', secret);
-      const digest = 'sha256=' + hmac.update(body).digest('hex');
-      
-      return crypto.timingSafeEqual(
-        Buffer.from(digest),
-        Buffer.from(signature)
-      );
+      return validation.isValidWebhookSignature(signature, body, secret);
     } catch (error) {
-      logger.logError('Error verifying webhook signature', error);
+      logger.error('Error verifying webhook signature', { error: error.stack });
       return false;
     }
   }
@@ -393,14 +407,17 @@ class WebhookManager {
   /**
    * Set the webhook URL
    * @param {string} url - New webhook URL
+   * @throws {Error} If URL is invalid
    */
   setWebhookUrl(url) {
-    if (!url || typeof url !== 'string') {
-      throw new Error('Invalid webhook URL');
+    try {
+      validation.isUrl(url, 'url');
+      
+      this.webhookUrl = url;
+      logger.info(`Webhook URL set to: ${url}`);
+    } catch (error) {
+      throw errorHandler.validationError(error.message);
     }
-    
-    this.webhookUrl = url;
-    logger.info(`Webhook URL set to: ${url}`);
   }
 }
 

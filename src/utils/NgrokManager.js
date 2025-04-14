@@ -6,6 +6,8 @@
 const ngrok = require('ngrok');
 const logger = require('./logger');
 const config = require('./config');
+const validation = require('./validation');
+const errorHandler = require('./errorHandler');
 
 class NgrokManager {
   /**
@@ -30,10 +32,8 @@ class NgrokManager {
    */
   async startTunnel(port, options = {}) {
     try {
-      if (!port || typeof port !== 'number') {
-        throw new Error('Port must be a valid number');
-      }
-
+      validation.isNumber(port, 'port', { min: 1, max: 65535 });
+      
       if (this.isRunning) {
         logger.warn('Ngrok tunnel is already running, stopping existing tunnel first');
         await this.stopTunnel();
@@ -58,8 +58,17 @@ class NgrokManager {
       logger.info(`Ngrok tunnel established at ${this.url}`);
       return this.url;
     } catch (error) {
-      logger.error(`Failed to start ngrok tunnel: ${error.message}`);
-      throw error;
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
+      const enhancedError = errorHandler.externalServiceError(
+        `Failed to start ngrok tunnel: ${error.message}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -82,8 +91,13 @@ class NgrokManager {
         logger.warn('No ngrok tunnel is running');
       }
     } catch (error) {
-      logger.error(`Failed to stop ngrok tunnel: ${error.message}`);
-      throw error;
+      const enhancedError = errorHandler.externalServiceError(
+        `Failed to stop ngrok tunnel: ${error.message}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -94,7 +108,7 @@ class NgrokManager {
    */
   async getPublicUrl() {
     if (!this.isRunning || !this.url) {
-      throw new Error('No ngrok tunnel is running');
+      throw errorHandler.notFoundError('No ngrok tunnel is running');
     }
     return this.url;
   }

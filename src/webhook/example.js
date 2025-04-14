@@ -4,7 +4,10 @@
 
 require('dotenv').config();
 const WebhookServer = require('./webhookServer');
-const { logger } = require('../utils/logger');
+const setupDashboard = require('./dashboard');
+const logger = require('../utils/logger');
+const errorHandler = require('../utils/errorHandler');
+const validation = require('../utils/validation');
 
 // Load environment variables
 const PORT = process.env.PORT || 3000;
@@ -26,36 +29,51 @@ const webhookServer = new WebhookServer({
 
 // Register event handlers
 // Push event handler
-webhookServer.registerEventHandler('push', (payload) => {
-  const { repository, ref, commits, sender } = payload;
-  const branch = ref.replace('refs/heads/', '');
-  
-  logger.info(`Received push to ${repository.full_name} on branch ${branch} by ${sender.login}`);
-  logger.info(`Commits: ${commits ? commits.length : 0}`);
-  
-  // Here you would add your business logic for handling push events
+webhookServer.registerEventHandler('push', async (payload) => {
+  try {
+    const { repository, ref, commits, sender } = payload;
+    const branch = ref.replace('refs/heads/', '');
+    
+    logger.info(`Received push to ${repository.full_name} on branch ${branch} by ${sender.login}`);
+    logger.info(`Commits: ${commits ? commits.length : 0}`);
+    
+    // Here you would add your business logic for handling push events
+  } catch (error) {
+    logger.error('Error handling push event', { error: error.stack });
+    throw errorHandler.webhookError(`Failed to process push event: ${error.message}`);
+  }
 });
 
 // Pull request event handler
-webhookServer.registerEventHandler('pull_request', (payload) => {
-  const { action, pull_request, repository } = payload;
-  
-  logger.info(`Received pull_request event: ${action}`);
-  logger.info(`PR #${pull_request.number}: ${pull_request.title}`);
-  logger.info(`Repository: ${repository.full_name}`);
-  
-  // Here you would add your business logic for handling PR events
+webhookServer.registerEventHandler('pull_request', async (payload) => {
+  try {
+    const { action, pull_request, repository } = payload;
+    
+    logger.info(`Received pull_request event: ${action}`);
+    logger.info(`PR #${pull_request.number}: ${pull_request.title}`);
+    logger.info(`Repository: ${repository.full_name}`);
+    
+    // Here you would add your business logic for handling PR events
+  } catch (error) {
+    logger.error('Error handling pull_request event', { error: error.stack });
+    throw errorHandler.webhookError(`Failed to process pull_request event: ${error.message}`);
+  }
 });
 
 // Issues event handler
-webhookServer.registerEventHandler('issues', (payload) => {
-  const { action, issue, repository } = payload;
-  
-  logger.info(`Received issues event: ${action}`);
-  logger.info(`Issue #${issue.number}: ${issue.title}`);
-  logger.info(`Repository: ${repository.full_name}`);
-  
-  // Here you would add your business logic for handling issue events
+webhookServer.registerEventHandler('issues', async (payload) => {
+  try {
+    const { action, issue, repository } = payload;
+    
+    logger.info(`Received issues event: ${action}`);
+    logger.info(`Issue #${issue.number}: ${issue.title}`);
+    logger.info(`Repository: ${repository.full_name}`);
+    
+    // Here you would add your business logic for handling issue events
+  } catch (error) {
+    logger.error('Error handling issues event', { error: error.stack });
+    throw errorHandler.webhookError(`Failed to process issues event: ${error.message}`);
+  }
 });
 
 // Start server and set up webhook
@@ -66,9 +84,23 @@ async function main() {
     logger.info(`Webhook server started on port ${PORT}`);
     logger.info(`Public URL: ${serverInfo.url}`);
     
+    // Set up dashboard
+    const express = require('express');
+    const app = express();
+    const dashboard = setupDashboard(app, webhookServer);
+    
+    // Start dashboard server
+    const dashboardPort = PORT + 1;
+    app.listen(dashboardPort, () => {
+      logger.info(`Dashboard available at http://localhost:${dashboardPort}${dashboard.basePath}`);
+    });
+    
     // Set up webhook for repository if configured
     if (GITHUB_OWNER && GITHUB_REPO) {
       try {
+        validation.isString(GITHUB_OWNER, 'GITHUB_OWNER');
+        validation.isString(GITHUB_REPO, 'GITHUB_REPO');
+        
         const webhook = await webhookServer.setupWebhook({
           owner: GITHUB_OWNER,
           repo: GITHUB_REPO,
@@ -78,16 +110,20 @@ async function main() {
         logger.info(`Webhook created successfully for ${GITHUB_OWNER}/${GITHUB_REPO}`);
         logger.info(`Webhook ID: ${webhook.id}`);
       } catch (error) {
-        logger.error(`Failed to set up webhook: ${error.message}`);
+        if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+          logger.error(`Invalid repository configuration: ${error.message}`);
+        } else {
+          logger.error(`Failed to set up webhook: ${error.message}`, { error: error.stack });
+        }
       }
     } else {
       logger.info('GITHUB_OWNER or GITHUB_REPO not configured. Skipping webhook setup.');
-      logger.info(`Use this URL for your webhook: ${serverInfo.url}/webhook`);
+      logger.info(`Use this URL for your webhook: ${serverInfo.url}`);
     }
     
     return serverInfo;
   } catch (error) {
-    logger.error(`Failed to start webhook server: ${error.message}`);
+    logger.error(`Failed to start webhook server: ${error.message}`, { error: error.stack });
     throw error;
   }
 }
@@ -101,7 +137,7 @@ function shutdown() {
       process.exit(0);
     })
     .catch(error => {
-      logger.error(`Error during shutdown: ${error.message}`);
+      logger.error(`Error during shutdown: ${error.message}`, { error: error.stack });
       process.exit(1);
     });
 }
@@ -113,7 +149,7 @@ process.on('SIGTERM', shutdown);
 // Run if this file is executed directly
 if (require.main === module) {
   main().catch(error => {
-    logger.error(`Server failed to start: ${error.message}`);
+    logger.error(`Server failed to start: ${error.message}`, { error: error.stack });
     process.exit(1);
   });
 }
@@ -121,4 +157,4 @@ if (require.main === module) {
 module.exports = {
   webhookServer,
   start: main
-}; 
+};
