@@ -9,6 +9,9 @@ const crypto = require('crypto');
 const axios = require('axios');
 const ngrok = require('ngrok');
 const logger = require('../utils/logger');
+const validation = require('../utils/validation');
+const errorHandler = require('../utils/errorHandler');
+const NgrokManager = require('../utils/NgrokManager');
 
 /**
  * WebhookServer class for handling GitHub webhooks with ngrok support
@@ -33,6 +36,7 @@ class WebhookServer {
     this.eventHandlers = {};
     this.server = null;
     this.ngrokUrl = null;
+    this.ngrokManager = new NgrokManager(this.ngrokOptions);
     
     // Validate required options
     if (!this.webhookSecret) {
@@ -72,17 +76,21 @@ class WebhookServer {
       return;
     }
     
-    const hmac = crypto.createHmac('sha256', this.webhookSecret);
-    const digest = 'sha256=' + hmac.update(buf).digest('hex');
-    
-    if (signature !== digest) {
-      const error = new Error('Invalid webhook signature');
-      error.status = 403;
+    try {
+      const isValid = validation.isValidWebhookSignature(signature, buf.toString(), this.webhookSecret);
+      
+      if (!isValid) {
+        const error = errorHandler.authorizationError('Invalid webhook signature');
+        error.status = 403;
+        throw error;
+      }
+      
+      // Store the verification result
+      req.webhookVerified = true;
+    } catch (error) {
+      logger.error('Webhook signature verification failed', { error: error.stack });
       throw error;
     }
-    
-    // Store the verification result
-    req.webhookVerified = true;
   }
   
   /**
@@ -93,7 +101,11 @@ class WebhookServer {
     try {
       if (this.webhookSecret && !req.webhookVerified) {
         logger.warn('Received unverified webhook payload');
-        return res.status(403).json({ error: 'Invalid signature' });
+        return res.status(403).json(
+          errorHandler.handleError(
+            errorHandler.authorizationError('Invalid signature')
+          ).error
+        );
       }
       
       const event = req.headers['x-github-event'];
@@ -103,7 +115,11 @@ class WebhookServer {
       logger.info(`Received GitHub webhook: ${event} (${deliveryId})`);
       
       if (!event || !payload) {
-        return res.status(400).json({ error: 'Missing event or payload' });
+        return res.status(400).json(
+          errorHandler.handleError(
+            errorHandler.validationError('Missing event or payload')
+          ).error
+        );
       }
       
       // Acknowledge receipt immediately
@@ -111,14 +127,15 @@ class WebhookServer {
       
       // Process the event asynchronously
       this._processEvent(event, payload).catch(error => {
-        logger.error(`Error processing webhook event ${event}:`, error);
+        logger.error(`Error processing webhook event ${event}:`, { error: error.stack });
       });
     } catch (error) {
-      logger.error('Error handling webhook:', error);
+      logger.error('Error handling webhook:', { error: error.stack });
       
       // Only send error response if one hasn't been sent yet
       if (!res.headersSent) {
-        res.status(error.status || 500).json({ error: error.message || 'Internal server error' });
+        const errorResponse = errorHandler.handleError(error);
+        res.status(errorResponse.error.statusCode || 500).json(errorResponse.error);
       }
     }
   }
@@ -140,7 +157,7 @@ class WebhookServer {
       await handler(payload);
       logger.info(`Successfully processed ${event} event`);
     } catch (error) {
-      logger.error(`Error in ${event} event handler:`, error);
+      logger.error(`Error in ${event} event handler:`, { error: error.stack });
       throw error;
     }
   }
@@ -151,12 +168,19 @@ class WebhookServer {
    * @param {Function} handler - Event handler function
    */
   registerEventHandler(event, handler) {
-    if (typeof handler !== 'function') {
-      throw new Error(`Event handler for ${event} must be a function`);
+    try {
+      validation.isString(event, 'event');
+      
+      if (typeof handler !== 'function') {
+        throw errorHandler.validationError(`Event handler for ${event} must be a function`);
+      }
+      
+      this.eventHandlers[event] = handler;
+      logger.info(`Registered handler for ${event} event`);
+    } catch (error) {
+      logger.error(`Failed to register event handler for ${event}:`, { error: error.stack });
+      throw error;
     }
-    
-    this.eventHandlers[event] = handler;
-    logger.info(`Registered handler for ${event} event`);
   }
   
   /**
@@ -174,11 +198,11 @@ class WebhookServer {
           
           if (useNgrok) {
             try {
-              this.ngrokUrl = await this._startNgrok();
+              this.ngrokUrl = await this.ngrokManager.startTunnel(this.port);
               url = this.ngrokUrl + this.path;
               logger.info(`ngrok tunnel established at ${this.ngrokUrl}`);
             } catch (ngrokError) {
-              logger.error('Failed to start ngrok:', ngrokError);
+              logger.error('Failed to start ngrok:', { error: ngrokError.stack });
               // Continue without ngrok
             }
           }
@@ -193,26 +217,22 @@ class WebhookServer {
         });
         
         this.server.on('error', (error) => {
-          reject(error);
+          const enhancedError = errorHandler.internalError(
+            `Server error: ${error.message}`,
+            { originalError: error.message }
+          );
+          logger.error(enhancedError.message, { error: error.stack });
+          reject(enhancedError);
         });
       } catch (error) {
-        reject(error);
+        const enhancedError = errorHandler.internalError(
+          `Failed to start server: ${error.message}`,
+          { originalError: error.message }
+        );
+        logger.error(enhancedError.message, { error: error.stack });
+        reject(enhancedError);
       }
     });
-  }
-  
-  /**
-   * Start ngrok tunnel
-   * @private
-   * @returns {Promise<string>} ngrok URL
-   */
-  async _startNgrok() {
-    const options = {
-      addr: this.port,
-      ...this.ngrokOptions
-    };
-    
-    return await ngrok.connect(options);
   }
   
   /**
@@ -223,11 +243,10 @@ class WebhookServer {
       const cleanup = async () => {
         if (this.ngrokUrl) {
           try {
-            await ngrok.disconnect();
-            await ngrok.kill();
+            await this.ngrokManager.stopTunnel();
             logger.info('ngrok tunnel closed');
           } catch (error) {
-            logger.error('Error closing ngrok tunnel:', error);
+            logger.error('Error closing ngrok tunnel:', { error: error.stack });
           }
           this.ngrokUrl = null;
         }
@@ -254,56 +273,79 @@ class WebhookServer {
    * @returns {Promise<Object>} Webhook creation response
    */
   async setupWebhook(options) {
-    if (!this.githubToken) {
-      throw new Error('GitHub token required to set up webhook');
-    }
-    
-    if (!this.ngrokUrl && !options.url) {
-      throw new Error('Server must be started with ngrok or custom URL provided');
-    }
-    
-    const { owner, repo, events = ['push'] } = options;
-    const url = options.url || (this.ngrokUrl + this.path);
-    
-    // Check existing webhooks to avoid duplicates
-    const existingWebhooks = await this._getRepositoryWebhooks(owner, repo);
-    const duplicate = existingWebhooks.find(hook => hook.config.url === url);
-    
-    if (duplicate) {
-      logger.info(`Webhook already exists with URL ${url}`);
-      return duplicate;
-    }
-    
-    // Create new webhook
-    const webhookData = {
-      name: 'web',
-      active: true,
-      events,
-      config: {
-        url,
-        content_type: 'json',
-        insecure_ssl: '0'
+    try {
+      validation.isObject(options, 'options', { requiredProps: ['owner', 'repo'] });
+      validation.isString(options.owner, 'options.owner');
+      validation.isString(options.repo, 'options.repo');
+      
+      if (options.events) {
+        validation.isArray(options.events, 'options.events');
       }
-    };
-    
-    // Add secret if available
-    if (this.webhookSecret) {
-      webhookData.config.secret = this.webhookSecret;
+      
+      if (!this.githubToken) {
+        throw errorHandler.authenticationError('GitHub token required to set up webhook');
+      }
+      
+      if (!this.ngrokUrl && !options.url) {
+        throw errorHandler.validationError('Server must be started with ngrok or custom URL provided');
+      }
+      
+      const { owner, repo, events = ['push'] } = options;
+      const url = options.url || (this.ngrokUrl + this.path);
+      
+      // Check existing webhooks to avoid duplicates
+      const existingWebhooks = await this._getRepositoryWebhooks(owner, repo);
+      const duplicate = existingWebhooks.find(hook => hook.config.url === url);
+      
+      if (duplicate) {
+        logger.info(`Webhook already exists with URL ${url}`);
+        return duplicate;
+      }
+      
+      // Create new webhook
+      const webhookData = {
+        name: 'web',
+        active: true,
+        events,
+        config: {
+          url,
+          content_type: 'json',
+          insecure_ssl: '0'
+        }
+      };
+      
+      // Add secret if available
+      if (this.webhookSecret) {
+        webhookData.config.secret = this.webhookSecret;
+      }
+      
+      const response = await axios({
+        method: 'post',
+        url: `https://api.github.com/repos/${owner}/${repo}/hooks`,
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `token ${this.githubToken}`,
+          'User-Agent': 'GitHub-Webhook-Server'
+        },
+        data: webhookData
+      });
+      
+      logger.info(`Webhook created for ${owner}/${repo}`);
+      return response.data;
+    } catch (error) {
+      if (error.name === errorHandler.ErrorTypes.VALIDATION || 
+          error.name === errorHandler.ErrorTypes.AUTHENTICATION) {
+        throw error;
+      }
+      
+      const enhancedError = errorHandler.externalServiceError(
+        `Failed to set up webhook: ${error.message}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
-    
-    const response = await axios({
-      method: 'post',
-      url: `https://api.github.com/repos/${owner}/${repo}/hooks`,
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'Authorization': `token ${this.githubToken}`,
-        'User-Agent': 'GitHub-Webhook-Server'
-      },
-      data: webhookData
-    });
-    
-    logger.info(`Webhook created for ${owner}/${repo}`);
-    return response.data;
   }
   
   /**
@@ -312,6 +354,9 @@ class WebhookServer {
    */
   async _getRepositoryWebhooks(owner, repo) {
     try {
+      validation.isString(owner, 'owner');
+      validation.isString(repo, 'repo');
+      
       const response = await axios({
         method: 'get',
         url: `https://api.github.com/repos/${owner}/${repo}/hooks`,
@@ -329,9 +374,16 @@ class WebhookServer {
         logger.warn(`Repository ${owner}/${repo} not found or no access`);
         return [];
       }
-      throw error;
+      
+      const enhancedError = errorHandler.externalServiceError(
+        `Failed to get repository webhooks: ${error.message}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 }
 
-module.exports = WebhookServer; 
+module.exports = WebhookServer;
