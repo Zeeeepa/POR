@@ -7,8 +7,16 @@ const { Octokit } = require('@octokit/rest');
 const fs = require('fs-extra');
 const path = require('path');
 const logger = require('./logger');
+const config = require('../config');
 
+/**
+ * GitHubEnhanced class for advanced GitHub operations
+ */
 class GitHubEnhanced {
+  /**
+   * Initialize the GitHubEnhanced instance
+   * @param {Object} config - Configuration object
+   */
   constructor(config = {}) {
     this.config = config;
     this.authenticated = false;
@@ -21,6 +29,7 @@ class GitHubEnhanced {
   /**
    * Authenticate with GitHub API
    * @returns {Promise<boolean>} Success status
+   * @throws {Error} If authentication fails
    */
   async authenticate() {
     try {
@@ -52,6 +61,7 @@ class GitHubEnhanced {
   /**
    * Get repositories for the authenticated user
    * @returns {Promise<Array>} List of repositories
+   * @throws {Error} If repositories cannot be fetched
    */
   async getRepositories() {
     if (!this.authenticated) {
@@ -88,10 +98,19 @@ class GitHubEnhanced {
    * @param {string} repoFullName - Full name of the repository (owner/repo)
    * @param {string} webhookUrl - URL for the webhook
    * @returns {Promise<Object>} Webhook data
+   * @throws {Error} If webhook creation fails
    */
   async setupWebhook(repoFullName, webhookUrl) {
     if (!this.authenticated) {
       await this.authenticate();
+    }
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      throw new Error('Invalid repository name format. Expected "owner/repo"');
+    }
+    
+    if (!webhookUrl) {
+      throw new Error('Webhook URL is required');
     }
     
     const [owner, repo] = repoFullName.split('/');
@@ -123,10 +142,15 @@ class GitHubEnhanced {
    * @param {string} repoFullName - Full name of the repository (owner/repo)
    * @param {string} state - State of PRs to fetch ('open', 'closed', 'all')
    * @returns {Promise<Array>} List of pull requests
+   * @throws {Error} If pull requests cannot be fetched
    */
   async getPullRequests(repoFullName, state = 'open') {
     if (!this.authenticated) {
       await this.authenticate();
+    }
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      throw new Error('Invalid repository name format. Expected "owner/repo"');
     }
     
     const [owner, repo] = repoFullName.split('/');
@@ -175,10 +199,19 @@ class GitHubEnhanced {
    * @param {number} prNumber - PR number
    * @param {string} requirementsPath - Path to requirements file
    * @returns {Promise<Object>} Analysis result
+   * @throws {Error} If PR analysis fails
    */
   async analyzePullRequest(repoFullName, prNumber, requirementsPath = null) {
     if (!this.authenticated) {
       await this.authenticate();
+    }
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      throw new Error('Invalid repository name format. Expected "owner/repo"');
+    }
+    
+    if (!prNumber || typeof prNumber !== 'number') {
+      throw new Error('PR number is required and must be a number');
     }
     
     const [owner, repo] = repoFullName.split('/');
@@ -281,10 +314,19 @@ class GitHubEnhanced {
    * @param {number} prNumber - PR number
    * @param {string} mergeMethod - Merge method (merge, squash, rebase)
    * @returns {Promise<Object>} Merge result
+   * @throws {Error} If PR merge fails
    */
   async mergePullRequest(repoFullName, prNumber, mergeMethod = 'squash') {
     if (!this.authenticated) {
       await this.authenticate();
+    }
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      throw new Error('Invalid repository name format. Expected "owner/repo"');
+    }
+    
+    if (!prNumber || typeof prNumber !== 'number') {
+      throw new Error('PR number is required and must be a number');
     }
     
     const [owner, repo] = repoFullName.split('/');
@@ -323,53 +365,53 @@ class GitHubEnhanced {
         success: true,
         merged: mergeResult.merged,
         message: mergeResult.message,
-        sha: mergeResult.sha,
-        pr: {
-          number: pr.number,
-          title: pr.title
-        }
+        sha: mergeResult.sha
       };
     } catch (error) {
       logger.error(`Failed to merge PR #${prNumber}: ${error.message}`);
-      
       return {
         success: false,
-        error: error.message,
-        pr: {
-          number: prNumber
-        }
+        error: error.message
       };
     }
   }
   
   /**
    * Queue a PR for analysis
-   * @param {Object} project - Project object
+   * @param {string} repoFullName - Full name of the repository (owner/repo)
    * @param {number} prNumber - PR number
+   * @param {Object} project - Project configuration
    */
-  async queuePRForAnalysis(project, prNumber) {
+  queuePRForAnalysis(repoFullName, prNumber, project) {
     try {
       // Check if PR is already in queue
       const existingIndex = this.prAnalysisQueue.findIndex(
-        item => item.project.config.name === project.config.name && item.prNumber === prNumber
+        item => item.repoFullName === repoFullName && item.prNumber === prNumber
       );
       
       if (existingIndex !== -1) {
         // Update existing entry
         this.prAnalysisQueue[existingIndex].queuedAt = new Date().toISOString();
+        this.prAnalysisQueue[existingIndex].project = project;
         logger.info(`Updated PR #${prNumber} in analysis queue for ${project.config.name}`);
         return;
       }
       
       // Add to queue
       this.prAnalysisQueue.push({
-        project: project,
-        prNumber: prNumber,
+        repoFullName,
+        prNumber,
+        project,
         queuedAt: new Date().toISOString(),
         attempts: 0
       });
       
       logger.info(`Queued PR #${prNumber} for analysis for ${project.config.name}`);
+      
+      // Start processing if not already running
+      if (this.prAnalysisQueue.length === 1) {
+        this.processAnalysisQueue();
+      }
     } catch (error) {
       logger.error(`Failed to queue PR for analysis: ${error.message}`);
     }
@@ -384,8 +426,6 @@ class GitHubEnhanced {
       return;
     }
     
-    logger.info(`Processing ${this.prAnalysisQueue.length} PRs in analysis queue`);
-    
     // Sort by queue time (oldest first)
     this.prAnalysisQueue.sort((a, b) => new Date(a.queuedAt) - new Date(b.queuedAt));
     
@@ -396,11 +436,14 @@ class GitHubEnhanced {
       // Increment attempt counter
       queueItem.attempts += 1;
       
-      // Get repository full name
-      const repoName = queueItem.project.config.repository;
-      const repoFullName = repoName.includes('/') 
-        ? repoName 
-        : `${this.config.github.username}/${repoName}`;
+      const repoFullName = queueItem.repoFullName;
+      
+      // Add comment to PR indicating analysis is in progress
+      await this.addCommentToPR(
+        repoFullName,
+        queueItem.prNumber,
+        `## Automated Analysis\n\nAnalyzing this PR for auto-merge eligibility...`
+      );
       
       // Analyze the PR
       const analysisResult = await this.analyzePullRequest(
@@ -456,10 +499,23 @@ class GitHubEnhanced {
    * @param {number} prNumber - PR number
    * @param {string} body - Comment body
    * @returns {Promise<Object>} Comment data
+   * @throws {Error} If comment creation fails
    */
   async addCommentToPR(repoFullName, prNumber, body) {
     if (!this.authenticated) {
       await this.authenticate();
+    }
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      throw new Error('Invalid repository name format. Expected "owner/repo"');
+    }
+    
+    if (!prNumber || typeof prNumber !== 'number') {
+      throw new Error('PR number is required and must be a number');
+    }
+    
+    if (!body || typeof body !== 'string') {
+      throw new Error('Comment body is required and must be a string');
     }
     
     const [owner, repo] = repoFullName.split('/');
@@ -606,10 +662,19 @@ class GitHubEnhanced {
    * @param {string} repoFullName - Full name of the repository (owner/repo)
    * @param {number} prNumber - PR number
    * @returns {Promise<Object>} PR type information
+   * @throws {Error} If PR type detection fails
    */
   async detectPRType(repoFullName, prNumber) {
     if (!this.authenticated) {
       await this.authenticate();
+    }
+    
+    if (!repoFullName || !repoFullName.includes('/')) {
+      throw new Error('Invalid repository name format. Expected "owner/repo"');
+    }
+    
+    if (!prNumber || typeof prNumber !== 'number') {
+      throw new Error('PR number is required and must be a number');
     }
     
     const [owner, repo] = repoFullName.split('/');
@@ -685,4 +750,4 @@ class GitHubEnhanced {
   }
 }
 
-module.exports = GitHubEnhanced; 
+module.exports = GitHubEnhanced;

@@ -7,16 +7,19 @@ const ngrok = require('ngrok');
 const logger = require('./logger');
 const config = require('../config');
 
+/**
+ * NgrokManager class for creating and managing ngrok tunnels
+ */
 class NgrokManager {
   /**
    * Initialize the NgrokManager
    * @param {Object} options - Configuration options
-   * @param {string} options.authtoken - Ngrok authtoken
-   * @param {string} options.region - Ngrok region (us, eu, au, ap, sa, jp, in)
+   * @param {string} [options.authtoken] - Ngrok authtoken
+   * @param {string} [options.region] - Ngrok region (us, eu, au, ap, sa, jp, in)
    */
   constructor(options = {}) {
     this.authtoken = options.authtoken || config.ngrokAuthToken;
-    this.region = options.region || 'us';
+    this.region = options.region || config.ngrokRegion || 'us';
     this.url = null;
     this.isRunning = false;
   }
@@ -24,11 +27,16 @@ class NgrokManager {
   /**
    * Start a new ngrok tunnel
    * @param {number} port - The local port to expose
-   * @param {Object} options - Additional ngrok options
+   * @param {Object} [options={}] - Additional ngrok options
    * @returns {Promise<string>} - The public ngrok URL
+   * @throws {Error} If tunnel creation fails
    */
   async startTunnel(port, options = {}) {
     try {
+      if (!port || typeof port !== 'number' || port <= 0) {
+        throw new Error('Invalid port number');
+      }
+
       if (this.isRunning) {
         logger.warn('Ngrok tunnel is already running, stopping existing tunnel first');
         await this.stopTunnel();
@@ -83,10 +91,10 @@ class NgrokManager {
 
   /**
    * Get the current public URL
-   * @returns {Promise<string>} - The public ngrok URL
+   * @returns {string} - The public ngrok URL
    * @throws {Error} - If no tunnel is running
    */
-  async getPublicUrl() {
+  getPublicUrl() {
     if (!this.isRunning || !this.url) {
       throw new Error('No ngrok tunnel is running');
     }
@@ -102,5 +110,4 @@ class NgrokManager {
   }
 }
 
-module.exports = NgrokManager; 
-module.exports = NgrokManager; 
+module.exports = NgrokManager;

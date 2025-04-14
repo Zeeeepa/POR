@@ -5,22 +5,38 @@
  */
 
 const { Octokit } = require('@octokit/rest');
+const crypto = require('crypto');
 const logger = require('./logger');
+const config = require('../config');
 
+/**
+ * WebhookManager class for managing GitHub webhooks
+ */
 class WebhookManager {
   /**
    * Initialize the webhook manager
    * @param {string} githubToken - GitHub personal access token
    * @param {string} webhookUrl - URL for the webhook
+   * @param {string} [webhookSecret] - Secret for webhook verification
    */
-  constructor(githubToken, webhookUrl) {
+  constructor(githubToken, webhookUrl, webhookSecret) {
+    if (!githubToken) {
+      throw new Error('GitHub token is required');
+    }
+    
+    if (!webhookUrl) {
+      throw new Error('Webhook URL is required');
+    }
+    
     this.octokit = new Octokit({ auth: githubToken });
     this.webhookUrl = webhookUrl;
+    this.webhookSecret = webhookSecret || config.github?.webhookSecret;
   }
 
   /**
    * Get all repositories accessible by the GitHub token
    * @returns {Promise<Array>} List of Repository objects
+   * @throws {Error} If repositories cannot be fetched
    */
   async getAllRepositories() {
     try {
@@ -47,6 +63,10 @@ class WebhookManager {
    */
   async listWebhooks(repoFullName) {
     try {
+      if (!repoFullName || !repoFullName.includes('/')) {
+        throw new Error('Invalid repository name format. Expected "owner/repo"');
+      }
+      
       const [owner, repo] = repoFullName.split('/');
       
       logger.info(`Listing webhooks for ${repoFullName}`);
@@ -92,6 +112,10 @@ class WebhookManager {
    */
   async createWebhook(repoFullName) {
     try {
+      if (!repoFullName || !repoFullName.includes('/')) {
+        throw new Error('Invalid repository name format. Expected "owner/repo"');
+      }
+      
       const [owner, repo] = repoFullName.split('/');
       
       logger.info(`Creating webhook for ${repoFullName}`);
@@ -101,6 +125,11 @@ class WebhookManager {
         content_type: 'json',
         insecure_ssl: '0'
       };
+      
+      // Add secret if available
+      if (this.webhookSecret) {
+        config.secret = this.webhookSecret;
+      }
       
       const { data: hook } = await this.octokit.repos.createWebhook({
         owner,
@@ -115,12 +144,11 @@ class WebhookManager {
     } catch (error) {
       const errorMessage = `Error creating webhook for ${repoFullName}: ${error.message}`;
       logger.error(errorMessage);
-      console.log(errorMessage);
       
       if (error.status === 404) {
-        console.log(`Repository ${repoFullName}: Permission denied. Make sure your token has 'admin:repo_hook' scope.`);
+        logger.error(`Repository ${repoFullName}: Permission denied. Make sure your token has 'admin:repo_hook' scope.`);
       } else if (error.status === 422) {
-        console.log(`Repository ${repoFullName}: Invalid webhook URL or configuration. Make sure your webhook URL is publicly accessible.`);
+        logger.error(`Repository ${repoFullName}: Invalid webhook URL or configuration. Make sure your webhook URL is publicly accessible.`);
       }
       
       return null;
@@ -136,6 +164,18 @@ class WebhookManager {
    */
   async updateWebhookUrl(repoFullName, hookId, newUrl) {
     try {
+      if (!repoFullName || !repoFullName.includes('/')) {
+        throw new Error('Invalid repository name format. Expected "owner/repo"');
+      }
+      
+      if (!hookId) {
+        throw new Error('Webhook ID is required');
+      }
+      
+      if (!newUrl) {
+        throw new Error('New URL is required');
+      }
+      
       const [owner, repo] = repoFullName.split('/');
       
       logger.info(`Updating webhook URL for ${repoFullName}`);
@@ -250,7 +290,7 @@ class WebhookManager {
       const { success, message } = await this.ensureWebhookExists(repoFullName);
       
       results[repoFullName] = message;
-      console.log(`Repository ${repoFullName}: ${message}`);
+      logger.info(`Repository ${repoFullName}: ${message}`);
     }
     
     return results;
@@ -284,9 +324,14 @@ class WebhookManager {
    */
   verifyWebhookSignature(signature, body, secret) {
     try {
-      const crypto = require('crypto');
+      if (!signature || !body || !secret) {
+        return false;
+      }
+      
       const hmac = crypto.createHmac('sha256', secret);
       const digest = 'sha256=' + hmac.update(body).digest('hex');
+      
+      // Use timingSafeEqual to prevent timing attacks
       return crypto.timingSafeEqual(
         Buffer.from(digest),
         Buffer.from(signature)
@@ -298,4 +343,4 @@ class WebhookManager {
   }
 }
 
-module.exports = WebhookManager; 
+module.exports = WebhookManager;
