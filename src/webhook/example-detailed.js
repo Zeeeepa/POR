@@ -1,10 +1,16 @@
+/**
+ * example-detailed.js
+ * Advanced example of WebhookServer with dashboard and comprehensive event handling
+ */
+
 require('dotenv').config();
 const { Octokit } = require('@octokit/rest');
 const WebhookServer = require('./webhookServer');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const path = require('path');
 const setupDashboard = require('./dashboard');
 const ejs = require('ejs');
+const fs = require('fs');
 
 // Load environment variables
 const PORT = process.env.PORT || 3000;
@@ -14,32 +20,20 @@ const NGROK_AUTH_TOKEN = process.env.NGROK_AUTH_TOKEN;
 const NGROK_REGION = process.env.NGROK_REGION || 'us';
 const GITHUB_OWNER = process.env.GITHUB_OWNER;
 const GITHUB_REPO = process.env.GITHUB_REPO;
+const ENABLE_REQUEST_LOGGING = process.env.ENABLE_REQUEST_LOGGING === 'true';
+const DASHBOARD_AUTH_REQUIRED = process.env.DASHBOARD_AUTH_REQUIRED === 'true';
+const DASHBOARD_USERNAME = process.env.DASHBOARD_USERNAME;
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 
 // Initialize Octokit client for making GitHub API calls
 const octokit = new Octokit({
-  auth: GITHUB_TOKEN
+  auth: GITHUB_TOKEN,
+  request: {
+    timeout: parseInt(process.env.REQUEST_TIMEOUT || '10000', 10)
+  }
 });
 
-// Helper function to get formatted time
-function getFormattedTime() {
-  return new Date().toISOString();
-}
-
-// Helper function to beautify JSON for display
-function beautifyJson(json) {
-  try {
-    // If it's already a string, parse it first
-    if (typeof json === 'string') {
-      return JSON.stringify(JSON.parse(json), null, 2);
-    }
-    // Otherwise stringify the object
-    return JSON.stringify(json, null, 2);
-  } catch (e) {
-    return json || '';
-  }
-}
-
-// Initialize the webhook server
+// Initialize the webhook server with improved configuration
 const webhookServer = new WebhookServer({
   port: PORT,
   webhookSecret: GITHUB_WEBHOOK_SECRET,
@@ -47,24 +41,21 @@ const webhookServer = new WebhookServer({
   ngrokOptions: {
     authtoken: NGROK_AUTH_TOKEN,
     region: NGROK_REGION
-  }
-});
-
-// Add the beautifyJson function to the response locals
-webhookServer.app.use((req, res, next) => {
-  res.locals.beautifyJson = beautifyJson;
-  next();
+  },
+  enableRequestLogging: ENABLE_REQUEST_LOGGING,
+  requestTimeout: parseInt(process.env.REQUEST_TIMEOUT || '10000', 10)
 });
 
 // ============================================================
 // Push Event Handler
 // ============================================================
-webhookServer.registerEventHandler('push', async (payload) => {
+webhookServer.registerEventHandler('push', async (payload, context) => {
   const { repository, ref, commits, sender, after } = payload;
   const branch = ref.replace('refs/heads/', '');
   
-  logger.info(`[${getFormattedTime()}] PUSH EVENT: ${repository.full_name} on branch ${branch} by ${sender.login}`);
+  logger.info(`[${new Date().toISOString()}] PUSH EVENT: ${repository.full_name} on branch ${branch} by ${sender.login}`);
   logger.info(`Commits: ${commits ? commits.length : 0}`);
+  logger.info(`Delivery ID: ${context.deliveryId}`);
   
   // Check if any package.json files were modified
   const packageJsonModified = commits?.some(commit => 
@@ -76,7 +67,7 @@ webhookServer.registerEventHandler('push', async (payload) => {
     
     // Example: Create an issue to remind about package.json changes
     try {
-      if (GITHUB_TOKEN && repository.owner.login === GITHUB_OWNER) {
+      if (context.githubToken && repository.owner.login === GITHUB_OWNER) {
         await octokit.issues.create({
           owner: repository.owner.login,
           repo: repository.name,
@@ -104,15 +95,16 @@ webhookServer.registerEventHandler('push', async (payload) => {
 // ============================================================
 // Pull Request Event Handler
 // ============================================================
-webhookServer.registerEventHandler('pull_request', async (payload) => {
+webhookServer.registerEventHandler('pull_request', async (payload, context) => {
   const { action, pull_request, repository, number } = payload;
   
-  logger.info(`[${getFormattedTime()}] PR EVENT: ${action} #${number} in ${repository.full_name}`);
+  logger.info(`[${new Date().toISOString()}] PR EVENT: ${action} #${number} in ${repository.full_name}`);
   logger.info(`Title: ${pull_request.title}`);
   logger.info(`User: ${pull_request.user.login}`);
+  logger.info(`Delivery ID: ${context.deliveryId}`);
   
   // Auto-label PRs based on files changed
-  if ((action === 'opened' || action === 'synchronize') && GITHUB_TOKEN) {
+  if ((action === 'opened' || action === 'synchronize') && context.githubToken) {
     try {
       // Get files changed in this PR
       const { data: files } = await octokit.pulls.listFiles({
@@ -184,14 +176,15 @@ webhookServer.registerEventHandler('pull_request', async (payload) => {
 // ============================================================
 // Issues Event Handler
 // ============================================================
-webhookServer.registerEventHandler('issues', async (payload) => {
+webhookServer.registerEventHandler('issues', async (payload, context) => {
   const { action, issue, repository } = payload;
   
-  logger.info(`[${getFormattedTime()}] ISSUE EVENT: ${action} #${issue.number} in ${repository.full_name}`);
+  logger.info(`[${new Date().toISOString()}] ISSUE EVENT: ${action} #${issue.number} in ${repository.full_name}`);
   logger.info(`Title: ${issue.title}`);
+  logger.info(`Delivery ID: ${context.deliveryId}`);
   
   // Auto-label new issues based on keywords in title
-  if (action === 'opened' && GITHUB_TOKEN) {
+  if (action === 'opened' && context.githubToken) {
     const title = issue.title.toLowerCase();
     const labels = [];
     
@@ -255,13 +248,14 @@ webhookServer.registerEventHandler('issues', async (payload) => {
 // ============================================================
 // Issue Comment Event Handler
 // ============================================================
-webhookServer.registerEventHandler('issue_comment', async (payload) => {
+webhookServer.registerEventHandler('issue_comment', async (payload, context) => {
   const { action, comment, issue, repository } = payload;
   
   if (action !== 'created') return;
   
-  logger.info(`[${getFormattedTime()}] COMMENT EVENT: New comment on #${issue.number} in ${repository.full_name}`);
+  logger.info(`[${new Date().toISOString()}] COMMENT EVENT: New comment on #${issue.number} in ${repository.full_name}`);
   logger.info(`Comment by: ${comment.user.login}`);
+  logger.info(`Delivery ID: ${context.deliveryId}`);
   
   // Process comment commands (like /assign, /label, etc)
   const commentBody = comment.body.trim();
@@ -321,12 +315,13 @@ webhookServer.registerEventHandler('issue_comment', async (payload) => {
 // ============================================================
 // Workflow Run Event Handler
 // ============================================================
-webhookServer.registerEventHandler('workflow_run', (payload) => {
+webhookServer.registerEventHandler('workflow_run', (payload, context) => {
   const { action, workflow_run } = payload;
   
-  logger.info(`[${getFormattedTime()}] WORKFLOW EVENT: ${action} - ${workflow_run.name}`);
+  logger.info(`[${new Date().toISOString()}] WORKFLOW EVENT: ${action} - ${workflow_run.name}`);
   logger.info(`Status: ${workflow_run.status}, Conclusion: ${workflow_run.conclusion}`);
   logger.info(`Repository: ${workflow_run.repository.full_name}`);
+  logger.info(`Delivery ID: ${context.deliveryId}`);
   
   // Handle workflow completions
   if (action === 'completed') {
@@ -350,14 +345,29 @@ webhookServer.registerEventHandler('workflow_run', (payload) => {
 // Start server and set up webhook
 async function main() {
   try {
-    // Set up the dashboard on the webhook server
-    setupDashboard(webhookServer.app, webhookServer);
+    // Create data directory if it doesn't exist
+    const dataDir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Set up the dashboard on the webhook server with improved options
+    setupDashboard(webhookServer.app, webhookServer, {
+      basePath: '/dashboard',
+      maxEvents: 200,
+      persistPath: path.join(dataDir, 'webhook-events.json'),
+      requireAuth: DASHBOARD_AUTH_REQUIRED,
+      auth: {
+        username: DASHBOARD_USERNAME,
+        password: DASHBOARD_PASSWORD
+      }
+    });
     
     // Start the server with ngrok tunneling
     const serverInfo = await webhookServer.start(true);
     logger.info(`Webhook server started on port ${PORT}`);
     logger.info(`Public URL: ${serverInfo.url}`);
-    logger.info(`Dashboard available at: ${serverInfo.url}/dashboard`);
+    logger.info(`Dashboard available at: ${serverInfo.ngrokUrl}/dashboard`);
     
     // Set up webhook for repository if configured
     if (GITHUB_OWNER && GITHUB_REPO && GITHUB_TOKEN) {
@@ -376,13 +386,23 @@ async function main() {
         
         logger.info(`Webhook created successfully for ${GITHUB_OWNER}/${GITHUB_REPO}`);
         logger.info(`Webhook ID: ${webhook.id}`);
+        
+        // Test the webhook if requested
+        if (process.env.TEST_WEBHOOK === 'true') {
+          await webhookServer.testWebhook({
+            owner: GITHUB_OWNER,
+            repo: GITHUB_REPO,
+            hookId: webhook.id
+          });
+          logger.info('Webhook test sent successfully');
+        }
       } catch (error) {
         logger.error(`Failed to set up webhook: ${error.message}`);
         logger.info('You may need to set up the webhook manually, or ensure your token has admin:repo_hook scope');
       }
     } else {
       logger.info('GITHUB_OWNER, GITHUB_REPO, or GITHUB_TOKEN not configured. Skipping webhook setup.');
-      logger.info(`Use this URL for your webhook: ${serverInfo.url}/webhook`);
+      logger.info(`Use this URL for your webhook: ${serverInfo.url}`);
       logger.info('Configure your webhook to send the following events:');
       logger.info('- push, pull_request, issues, issue_comment, workflow_run');
     }
@@ -423,4 +443,4 @@ if (require.main === module) {
 module.exports = {
   webhookServer,
   start: main
-}; 
+};
