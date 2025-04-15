@@ -6,6 +6,10 @@
 const fs = require('fs-extra');
 const path = require('path');
 const logger = require('../utils/logger');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file
+dotenv.config();
 
 class ConfigManager {
   constructor(configPath) {
@@ -26,6 +30,15 @@ class ConfigManager {
     try {
       if (fs.existsSync(this.configPath)) {
         this.config = fs.readJsonSync(this.configPath);
+        
+        // Always update GitHub token from environment if available
+        if (process.env.GITHUB_TOKEN) {
+          if (!this.config.github) {
+            this.config.github = {};
+          }
+          this.config.github.token = process.env.GITHUB_TOKEN;
+        }
+        
         logger.info('Configuration loaded successfully');
       } else {
         // Create default configuration
@@ -44,7 +57,16 @@ class ConfigManager {
    */
   saveConfig() {
     try {
-      fs.writeJsonSync(this.configPath, this.config, { spaces: 2 });
+      // Create a copy of the config without sensitive information
+      const configToSave = { ...this.config };
+      
+      // Don't save GitHub token to config file for security
+      if (configToSave.github && configToSave.github.token) {
+        // Store a placeholder instead of the actual token
+        configToSave.github.token = configToSave.github.token ? '***TOKEN_SAVED_IN_ENV***' : '';
+      }
+      
+      fs.writeJsonSync(this.configPath, configToSave, { spaces: 2 });
       logger.info('Configuration saved successfully');
       return true;
     } catch (error) {
@@ -107,11 +129,59 @@ class ConfigManager {
         updatedAt: new Date().toISOString()
       };
       
+      // If GitHub token is provided in the new config, save it to .env file
+      if (newConfig.github && newConfig.github.token && 
+          newConfig.github.token !== '***TOKEN_SAVED_IN_ENV***' && 
+          newConfig.github.token.length > 0) {
+        this.saveGitHubTokenToEnv(newConfig.github.token);
+      }
+      
       // Save updated config
       return this.saveConfig();
     } catch (error) {
       logger.error(`Failed to update configuration: ${error.message}`);
       return false;
+    }
+  }
+  
+  /**
+   * Save GitHub token to .env file
+   * @param {string} token - GitHub token
+   */
+  saveGitHubTokenToEnv(token) {
+    try {
+      const envPath = path.join(process.cwd(), '.env');
+      let envContent = '';
+      
+      if (fs.existsSync(envPath)) {
+        // Read existing .env file
+        envContent = fs.readFileSync(envPath, 'utf8');
+        
+        // Check if GITHUB_TOKEN already exists in the file
+        if (envContent.includes('GITHUB_TOKEN=')) {
+          // Replace existing token
+          envContent = envContent.replace(
+            /GITHUB_TOKEN=.*/,
+            `GITHUB_TOKEN=${token}`
+          );
+        } else {
+          // Add token to file
+          envContent += `\nGITHUB_TOKEN=${token}\n`;
+        }
+      } else {
+        // Create new .env file
+        envContent = `GITHUB_TOKEN=${token}\n`;
+      }
+      
+      // Write to .env file
+      fs.writeFileSync(envPath, envContent);
+      
+      // Update environment variable
+      process.env.GITHUB_TOKEN = token;
+      
+      logger.info('GitHub token saved to .env file');
+    } catch (error) {
+      logger.error(`Failed to save GitHub token to .env: ${error.message}`);
     }
   }
   
@@ -165,6 +235,11 @@ class ConfigManager {
       
       // Update timestamp
       this.config.updatedAt = new Date().toISOString();
+      
+      // Special handling for GitHub token
+      if (key === 'github.token' && value && value !== '***TOKEN_SAVED_IN_ENV***') {
+        this.saveGitHubTokenToEnv(value);
+      }
       
       // Save the updated config
       return this.saveConfig();
