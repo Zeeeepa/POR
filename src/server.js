@@ -3,7 +3,12 @@
 const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
+const fs = require('fs');
+const readline = require('readline');
 const { DeplaManager } = require('../framework');
+
+// Load environment variables from .env file
+require('dotenv').config();
 
 // Initialize the app
 const app = express();
@@ -18,8 +23,71 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// Check for GitHub token
+async function checkGitHubToken() {
+  // Check if GITHUB_TOKEN exists in environment
+  if (!process.env.GITHUB_TOKEN) {
+    console.log('\n⚠️  GitHub token not found in environment variables');
+    
+    // Create readline interface for user input
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    
+    // Prompt for GitHub token
+    const token = await new Promise((resolve) => {
+      rl.question('Enter your GitHub token: ', (answer) => {
+        resolve(answer.trim());
+        rl.close();
+      });
+    });
+    
+    if (token) {
+      // Set token in environment
+      process.env.GITHUB_TOKEN = token;
+      
+      // Save token to .env file if it doesn't exist
+      const envPath = path.join(process.cwd(), '.env');
+      let envContent = '';
+      
+      if (fs.existsSync(envPath)) {
+        // Read existing .env file
+        envContent = fs.readFileSync(envPath, 'utf8');
+        
+        // Check if GITHUB_TOKEN already exists in the file
+        if (!envContent.includes('GITHUB_TOKEN=')) {
+          // Add GITHUB_TOKEN to the file
+          envContent += `\nGITHUB_TOKEN=${token}\n`;
+          fs.writeFileSync(envPath, envContent);
+          console.log('✅ GitHub token saved to .env file');
+        }
+      } else {
+        // Create new .env file with token
+        envContent = `GITHUB_TOKEN=${token}\n`;
+        fs.writeFileSync(envPath, envContent);
+        console.log('✅ Created .env file with GitHub token');
+      }
+    } else {
+      console.error('❌ GitHub token is required for repository operations');
+      process.exit(1);
+    }
+  }
+}
+
 // Initialize DeplaManager
-const deplaManager = new DeplaManager();
+let deplaManager;
+
+// Initialize application
+async function initializeApp() {
+  await checkGitHubToken();
+  deplaManager = new DeplaManager();
+  
+  // Start the server
+  app.listen(PORT, () => {
+    console.log(`Depla Project Manager running on http://localhost:${PORT}`);
+  });
+}
 
 // Routes
 app.get('/', async (req, res) => {
@@ -55,7 +123,6 @@ app.post('/projects/add', async (req, res) => {
 app.get('/projects/:name/requirements', async (req, res) => {
   const project = deplaManager.getProject(req.params.name);
   if (project) {
-    const fs = require('fs');
     const requirementsPath = path.join(project.path, 'REQUIREMENTS.md');
     if (fs.existsSync(requirementsPath)) {
       const requirements = fs.readFileSync(requirementsPath, 'utf8');
@@ -83,7 +150,6 @@ app.get('/projects/:name/generate-steps', async (req, res) => {
   const project = deplaManager.getProject(req.params.name);
   if (project) {
     const steps = await project.generateSteps();
-    const fs = require('fs');
     fs.writeFileSync(path.join(project.path, 'STEPS.md'), steps);
     project.loadSteps();
     res.redirect(`/projects/${project.config.name}`);
@@ -142,13 +208,8 @@ app.post('/settings', async (req, res) => {
   res.redirect('/settings');
 });
 
-// API routes
-app.get('/api/wsl2-test', async (req, res) => {
-  const result = await deplaManager.testWsl2Connection();
-  res.json(result);
-});
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Depla Project Manager running on http://localhost:${PORT}`);
+// Initialize the application
+initializeApp().catch(error => {
+  console.error('Failed to initialize application:', error);
+  process.exit(1);
 });

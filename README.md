@@ -1,76 +1,73 @@
 # Depla Project Manager
 
-Multi-threaded project management system with AI-prompted implementation.
+A multi-threaded project management system with AI-prompted implementation.
+
+## Features
+
+- GitHub repository integration
+- Webhook server for GitHub events
+- Project management dashboard
+- Message queue system
+- Automated implementation steps
+
+## Prerequisites
+
+- Node.js (v16 or higher)
+- npm (v7 or higher)
+- GitHub account with personal access token
 
 ## Installation
 
 1. Clone the repository:
-```
-git clone https://github.com/Zeeeepa/POR.git
-cd POR
-```
+   ```
+   git clone https://github.com/Zeeeepa/POR.git
+   cd POR
+   ```
 
 2. Install dependencies:
-```
-npm install
-```
+   ```
+   npm install
+   ```
 
-## Running the Application
+3. Create a `.env` file in the root directory with your GitHub token:
+   ```
+   GITHUB_TOKEN=your_github_token_here
+   ```
 
-You can run the application using one of the following methods:
+## Usage
 
-### Method 1: Using npm start
+1. Start the application:
+   ```
+   npm start
+   ```
 
-```
-npm start
-```
+2. Open your browser and navigate to:
+   ```
+   http://localhost:3000
+   ```
 
-This will start the server using the configuration in package.json.
-
-### Method 2: Using the start script
-
-```
-node start.js
-```
-
-This will run the setup wizard if needed and then start the application.
-
-### Method 3: Quick start
-
-```
-node start.js --start
-```
-
-This will skip the setup wizard and start the application immediately.
+3. If you didn't set up a GitHub token in the `.env` file, you will be prompted to enter it when starting the application.
 
 ## Configuration
 
-The application uses a configuration file stored in:
-- Windows: `%APPDATA%\.depla\config.json`
-- macOS/Linux: `$HOME/.depla/config.json`
-
-You can run the setup wizard to configure the application:
+You can configure the application through the web interface at `/settings` or by editing the `.env` file:
 
 ```
-node start.js --setup
-```
+# GitHub Configuration
+GITHUB_TOKEN=your_github_token_here
 
-## WSL2 Integration
-
-If you're using Windows, the application can integrate with WSL2 for additional functionality. To set up the WSL2 server:
-
-```
-node start.js --setup-wsl
+# Application Configuration
+PORT=3000
+LOG_LEVEL=info
 ```
 
 ## Project Structure
 
-- `src/server.js`: Main Express server
-- `framework.js`: Core framework functionality
-- `src/framework/`: Framework components
-- `src/models/`: Data models
-- `src/utils/`: Utility functions
-- `src/webhook/`: Webhook handling
+- `src/` - Main application code
+  - `server.js` - Express server
+  - `framework/` - Core framework components
+  - `utils/` - Utility functions
+  - `webhook/` - GitHub webhook handling
 
 ## License
 
