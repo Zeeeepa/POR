@@ -3,17 +3,18 @@
  * Exports all webhook module components
  */
 
-const WebhookManager = require('./WebhookManager');
+const WebhookServerManager = require('./WebhookManager');
 const WebhookServer = require('./webhookServer');
 const setupDashboard = require('./dashboard');
+const GitHubWebhookManager = require('../utils/WebhookManager');
 
 /**
- * Create a new webhook manager
+ * Create a new webhook server manager
  * @param {Object} options - Configuration options
- * @returns {WebhookManager} New webhook manager instance
+ * @returns {WebhookServerManager} New webhook server manager instance
  */
-function createWebhookManager(options = {}) {
-  return new WebhookManager(options);
+function createWebhookServerManager(options = {}) {
+  return new WebhookServerManager(options);
 }
 
 /**
@@ -25,16 +26,28 @@ function createWebhookServer(options = {}) {
   return new WebhookServer(options);
 }
 
+/**
+ * Create a new GitHub webhook manager
+ * @param {string} [githubToken] - GitHub personal access token
+ * @param {string} [webhookUrl] - URL for the webhook
+ * @returns {GitHubWebhookManager} New GitHub webhook manager instance
+ */
+function createGitHubWebhookManager(githubToken, webhookUrl) {
+  return new GitHubWebhookManager(githubToken, webhookUrl);
+}
+
 // Export all components
 module.exports = {
   // Main exports
-  WebhookManager,
+  WebhookServerManager,
   WebhookServer,
+  GitHubWebhookManager,
   setupDashboard,
   
   // Factory functions
-  createWebhookManager,
+  createWebhookServerManager,
   createWebhookServer,
+  createGitHubWebhookManager,
   
   // Example implementations
   examples: {

@@ -91,7 +91,7 @@ async function main() {
     
     // Start dashboard server
     const dashboardPort = PORT + 1;
-    app.listen(dashboardPort, () => {
+    const dashboardServer = app.listen(dashboardPort, () => {
       logger.info(`Dashboard available at http://localhost:${dashboardPort}${dashboard.basePath}`);
     });
     
@@ -121,7 +121,13 @@ async function main() {
       logger.info(`Use this URL for your webhook: ${serverInfo.url}`);
     }
     
-    return serverInfo;
+    // Add dashboard server to the returned info
+    return {
+      ...serverInfo,
+      dashboardServer,
+      dashboardPort,
+      dashboardUrl: `http://localhost:${dashboardPort}${dashboard.basePath}`
+    };
   } catch (error) {
     logger.error(`Failed to start webhook server: ${error.message}`, { error: error.stack });
     throw error;

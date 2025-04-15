@@ -9,6 +9,9 @@ const config = require('./config');
 const validation = require('./validation');
 const errorHandler = require('./errorHandler');
 
+/**
+ * NgrokManager class for managing ngrok tunnels
+ */
 class NgrokManager {
   /**
    * Initialize the NgrokManager
@@ -17,10 +20,25 @@ class NgrokManager {
    * @param {string} [options.region] - Ngrok region (us, eu, au, ap, sa, jp, in)
    */
   constructor(options = {}) {
-    this.authtoken = options.authtoken || config.ngrok.authToken;
-    this.region = options.region || config.ngrok.region || 'us';
-    this.url = null;
-    this.isRunning = false;
+    try {
+      validation.isObject(options, 'options');
+      
+      this.authtoken = options.authtoken || config.ngrok?.authToken;
+      this.region = options.region || config.ngrok?.region || 'us';
+      
+      // Validate region if provided
+      if (options.region) {
+        validation.isOneOf(options.region, 'options.region', ['us', 'eu', 'au', 'ap', 'sa', 'jp', 'in']);
+      }
+      
+      this.url = null;
+      this.isRunning = false;
+      
+      logger.info('NgrokManager initialized');
+    } catch (error) {
+      logger.error('Failed to initialize NgrokManager', { error: error.stack });
+      throw errorHandler.internalError('Failed to initialize NgrokManager', { originalError: error.message });
+    }
   }
 
   /**
@@ -33,6 +51,7 @@ class NgrokManager {
   async startTunnel(port, options = {}) {
     try {
       validation.isNumber(port, 'port', { min: 1, max: 65535 });
+      validation.isObject(options, 'options');
       
       if (this.isRunning) {
         logger.warn('Ngrok tunnel is already running, stopping existing tunnel first');
@@ -81,8 +100,18 @@ class NgrokManager {
     try {
       if (this.isRunning) {
         logger.info('Stopping ngrok tunnel');
-        await ngrok.disconnect();
-        await ngrok.kill();
+        
+        try {
+          await ngrok.disconnect();
+        } catch (disconnectError) {
+          logger.error('Error disconnecting ngrok tunnel', { error: disconnectError.stack });
+        }
+        
+        try {
+          await ngrok.kill();
+        } catch (killError) {
+          logger.error('Error killing ngrok process', { error: killError.stack });
+        }
         
         this.url = null;
         this.isRunning = false;
@@ -103,10 +132,10 @@ class NgrokManager {
 
   /**
    * Get the current public URL
-   * @returns {Promise<string>} - The public ngrok URL
+   * @returns {string} - The public ngrok URL
    * @throws {Error} - If no tunnel is running
    */
-  async getPublicUrl() {
+  getPublicUrl() {
     if (!this.isRunning || !this.url) {
       throw errorHandler.notFoundError('No ngrok tunnel is running');
     }
@@ -119,6 +148,36 @@ class NgrokManager {
    */
   isNgrokRunning() {
     return this.isRunning;
+  }
+  
+  /**
+   * Set the authtoken for ngrok
+   * @param {string} authtoken - Ngrok authtoken
+   * @throws {Error} If authtoken is invalid
+   */
+  setAuthToken(authtoken) {
+    try {
+      validation.isString(authtoken, 'authtoken');
+      this.authtoken = authtoken;
+      logger.info('Ngrok authtoken set');
+    } catch (error) {
+      throw errorHandler.validationError(error.message);
+    }
+  }
+  
+  /**
+   * Set the region for ngrok
+   * @param {string} region - Ngrok region (us, eu, au, ap, sa, jp, in)
+   * @throws {Error} If region is invalid
+   */
+  setRegion(region) {
+    try {
+      validation.isOneOf(region, 'region', ['us', 'eu', 'au', 'ap', 'sa', 'jp', 'in']);
+      this.region = region;
+      logger.info(`Ngrok region set to ${region}`);
+    } catch (error) {
+      throw errorHandler.validationError(error.message);
+    }
   }
 }
 

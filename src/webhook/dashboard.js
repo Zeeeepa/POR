@@ -9,11 +9,22 @@ const moment = require('moment');
 const validation = require('../utils/validation');
 const errorHandler = require('../utils/errorHandler');
 const logger = require('../utils/logger');
+const webhookUtils = require('../utils/github/webhookUtils');
 
-// For storing webhook events in memory
-const eventHistory = {
-  events: [],
-  maxEvents: 100,
+/**
+ * Event history storage class
+ */
+class EventHistory {
+  constructor(maxEvents = 100) {
+    this.events = [];
+    this.maxEvents = maxEvents;
+  }
+  
+  /**
+   * Add an event to the history
+   * @param {Object} event - Event to add
+   * @returns {Object} Added event
+   */
   addEvent(event) {
     try {
       validation.isObject(event, 'event', { requiredProps: ['type'] });
@@ -26,9 +37,15 @@ const eventHistory = {
       return event;
     } catch (error) {
       logger.error('Failed to add event to history', { error: error.stack });
-      throw error;
+      throw errorHandler.validationError('Failed to add event to history', { originalError: error.message });
     }
-  },
+  }
+  
+  /**
+   * Get events from the history
+   * @param {number} limit - Maximum number of events to return
+   * @returns {Array} Events
+   */
   getEvents(limit = 50) {
     try {
       validation.isNumber(limit, 'limit', { min: 1, max: 1000 });
@@ -37,7 +54,12 @@ const eventHistory = {
       logger.error('Failed to get events', { error: error.stack });
       return [];
     }
-  },
+  }
+  
+  /**
+   * Get statistics about the events
+   * @returns {Object} Event statistics
+   */
   getStats() {
     const stats = {
       total: this.events.length,
@@ -56,7 +78,7 @@ const eventHistory = {
     
     return stats;
   }
-};
+}
 
 /**
  * Set up dashboard routes on an existing Express app
@@ -71,6 +93,9 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     validation.isObject(webhookServer, 'webhookServer');
     validation.isString(basePath, 'basePath', true);
     
+    // Create event history
+    const eventHistory = new EventHistory(100);
+    
     // Add template engine
     app.set('view engine', 'ejs');
     app.set('views', path.join(__dirname, 'views'));
@@ -80,19 +105,25 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     
     // Create middleware to capture webhook events
     const captureEvents = () => {
-      // Override the _processEvent method to capture events
+      // Store original method reference
       const originalProcessEvent = webhookServer._processEvent.bind(webhookServer);
+      
+      // Override the _processEvent method to capture events
       webhookServer._processEvent = async (event, payload) => {
         try {
+          // Extract repository and sender info
+          const repository = webhookUtils.extractRepositoryInfo(payload);
+          const sender = webhookUtils.extractSenderInfo(payload);
+          
           // Capture event for dashboard
           eventHistory.addEvent({
             id: payload.id || payload.hook?.id || payload.hook_id || Date.now(),
             type: event,
             action: payload.action,
             timestamp: new Date(),
-            repository: payload.repository?.full_name,
-            sender: payload.sender?.login,
-            summary: getSummary(event, payload),
+            repository: repository.fullName,
+            sender: sender.login,
+            summary: webhookUtils.generateEventSummary(event, payload),
             payload: JSON.stringify(payload, null, 2)
           });
           
@@ -106,24 +137,6 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
       };
     };
     
-    // Helper to generate summary of events
-    function getSummary(event, payload) {
-      switch (event) {
-        case 'push':
-          return `${payload.commits?.length || 0} commits to ${payload.ref}`;
-        case 'pull_request':
-          return `${payload.action} PR #${payload.number || payload.pull_request?.number}: ${payload.pull_request?.title}`;
-        case 'issues':
-          return `${payload.action} issue #${payload.issue?.number}: ${payload.issue?.title}`;
-        case 'issue_comment':
-          return `Comment on #${payload.issue?.number}`;
-        case 'workflow_run':
-          return `Workflow ${payload.workflow_run?.name} ${payload.workflow_run?.status}`;
-        default:
-          return `${event} event received`;
-      }
-    }
-    
     // Dashboard home page
     app.get(basePath, errorHandler.asyncHandler(async (req, res) => {
       const stats = eventHistory.getStats();
@@ -131,7 +144,9 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
       
       const serverInfo = {
         port: webhookServer.port,
-        webhookUrl: webhookServer.ngrokUrl ? `${webhookServer.ngrokUrl}${webhookServer.path}` : `http://localhost:${webhookServer.port}${webhookServer.path}`,
+        webhookUrl: webhookServer.ngrokUrl ? 
+          `${webhookServer.ngrokUrl}${webhookServer.path}` : 
+          `http://localhost:${webhookServer.port}${webhookServer.path}`,
         isNgrokActive: !!webhookServer.ngrokUrl,
         uptime: process.uptime(),
         eventsReceived: eventHistory.events.length
@@ -148,34 +163,38 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     
     // Events page with filtering
     app.get(`${basePath}/events`, errorHandler.asyncHandler(async (req, res) => {
-      const { type, repo, limit = 50 } = req.query;
-      let events = eventHistory.getEvents(100);
-      
-      // Apply filters
-      if (type) {
-        events = events.filter(e => e.type === type);
+      try {
+        const { type, repo, limit = 50 } = req.query;
+        let events = eventHistory.getEvents(100);
+        
+        // Apply filters
+        if (type) {
+          events = events.filter(e => e.type === type);
+        }
+        
+        if (repo) {
+          events = events.filter(e => e.repository && e.repository.includes(repo));
+        }
+        
+        // Apply limit after filtering
+        const parsedLimit = parseInt(limit, 10);
+        events = events.slice(0, isNaN(parsedLimit) ? 50 : Math.min(parsedLimit, 100));
+        
+        res.render('events', {
+          title: 'Webhook Events',
+          events,
+          filters: { type, repo, limit },
+          moment
+        });
+      } catch (error) {
+        throw errorHandler.internalError('Error filtering events', { originalError: error.message });
       }
-      
-      if (repo) {
-        events = events.filter(e => e.repository && e.repository.includes(repo));
-      }
-      
-      // Apply limit after filtering
-      const parsedLimit = parseInt(limit, 10);
-      events = events.slice(0, isNaN(parsedLimit) ? 50 : parsedLimit);
-      
-      res.render('events', {
-        title: 'Webhook Events',
-        events,
-        filters: { type, repo, limit },
-        moment
-      });
     }));
     
     // Event detail page
     app.get(`${basePath}/events/:id`, errorHandler.asyncHandler(async (req, res) => {
       const eventId = req.params.id;
-      const event = eventHistory.events.find(e => e.id == eventId);
+      const event = eventHistory.events.find(e => String(e.id) === String(eventId));
       
       if (!event) {
         throw errorHandler.notFoundError(`Event with ID ${eventId} was not found`);
@@ -190,23 +209,37 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     
     // API routes for event data
     app.get(`${basePath}/api/events`, errorHandler.asyncHandler(async (req, res) => {
-      const { limit = 50 } = req.query;
-      const parsedLimit = parseInt(limit, 10);
-      res.json(eventHistory.getEvents(isNaN(parsedLimit) ? 50 : parsedLimit));
+      try {
+        const { limit = 50 } = req.query;
+        const parsedLimit = parseInt(limit, 10);
+        const validLimit = isNaN(parsedLimit) ? 50 : Math.min(parsedLimit, 100);
+        
+        res.json(eventHistory.getEvents(validLimit));
+      } catch (error) {
+        throw errorHandler.internalError('Error retrieving events', { originalError: error.message });
+      }
     }));
     
     app.get(`${basePath}/api/stats`, errorHandler.asyncHandler(async (req, res) => {
-      res.json(eventHistory.getStats());
+      try {
+        res.json(eventHistory.getStats());
+      } catch (error) {
+        throw errorHandler.internalError('Error retrieving stats', { originalError: error.message });
+      }
     }));
     
     app.get(`${basePath}/api/server-info`, errorHandler.asyncHandler(async (req, res) => {
-      res.json({
-        port: webhookServer.port,
-        path: webhookServer.path,
-        ngrokUrl: webhookServer.ngrokUrl,
-        eventHandlers: Object.keys(webhookServer.eventHandlers),
-        uptime: process.uptime()
-      });
+      try {
+        res.json({
+          port: webhookServer.port,
+          path: webhookServer.path,
+          ngrokUrl: webhookServer.ngrokUrl,
+          eventHandlers: Object.keys(webhookServer.eventHandlers),
+          uptime: process.uptime()
+        });
+      } catch (error) {
+        throw errorHandler.internalError('Error retrieving server info', { originalError: error.message });
+      }
     }));
     
     // Add error handler middleware
@@ -215,13 +248,15 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     // Start capturing events
     captureEvents();
     
+    logger.info(`Dashboard set up at ${basePath}`);
+    
     return {
       eventHistory,
       basePath
     };
   } catch (error) {
     logger.error('Failed to set up dashboard', { error: error.stack });
-    throw error;
+    throw errorHandler.internalError('Failed to set up dashboard', { originalError: error.message });
   }
 }
 
