@@ -257,7 +257,8 @@ function startApplication(config) {
   // Check if server.js exists
   const serverPath = path.join(__dirname, 'src', 'server.js');
   if (!fs.existsSync(serverPath)) {
-    console.error('Server file not found. Make sure you are in the Depla project directory.');
+    console.error('Server file not found at: ' + serverPath);
+    console.error('Make sure you are in the Depla project directory and the src/server.js file exists.');
     rl.close();
     return;
   }
@@ -448,4 +449,4 @@ async function main() {
 }
 
 // Run the main function
-main(); 
+main();
