@@ -7,7 +7,6 @@ const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
 const fs = require('fs-extra');
-const readline = require('readline');
 const framework = require('./framework');
 const logger = require('./utils/logger');
 // Import DeplaEnhanced directly to avoid circular dependency
@@ -29,64 +28,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// Check for GitHub token
-async function checkGitHubToken() {
-  // Check if GITHUB_TOKEN exists in environment
-  if (!process.env.GITHUB_TOKEN) {
-    logger.warn('GitHub token not found in environment variables');
-    
-    // Create readline interface for user input
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-    
-    // Prompt for GitHub token
-    const token = await new Promise((resolve) => {
-      rl.question('Enter your GitHub token: ', (answer) => {
-        resolve(answer.trim());
-        rl.close();
-      });
-    });
-    
-    if (token) {
-      // Set token in environment
-      process.env.GITHUB_TOKEN = token;
-      
-      // Save token to .env file if it doesn't exist
-      const envPath = path.join(process.cwd(), '.env');
-      let envContent = '';
-      
-      if (fs.existsSync(envPath)) {
-        // Read existing .env file
-        envContent = fs.readFileSync(envPath, 'utf8');
-        
-        // Check if GITHUB_TOKEN already exists in the file
-        if (!envContent.includes('GITHUB_TOKEN=')) {
-          // Add GITHUB_TOKEN to the file
-          envContent += `\nGITHUB_TOKEN=${token}\n`;
-          fs.writeFileSync(envPath, envContent);
-          logger.info('GitHub token saved to .env file');
-        }
-      } else {
-        // Create new .env file with token
-        envContent = `GITHUB_TOKEN=${token}\n`;
-        fs.writeFileSync(envPath, envContent);
-        logger.info('Created .env file with GitHub token');
-      }
-    } else {
-      logger.error('GitHub token is required for repository operations');
-      process.exit(1);
-    }
-  }
-}
-
 // Initialize DeplaEnhanced
 let deplaManager;
 
 // Initialize application
 async function initializeApp() {
-  await checkGitHubToken();
   // Use the directly imported DeplaEnhanced class
   deplaManager = new DeplaEnhanced();
   
@@ -219,7 +165,10 @@ app.post('/settings', async (req, res) => {
 if (require.main === module) {
   initializeApp().catch(error => {
     logger.error('Failed to initialize application:', error);
-    process.exit(1);
+    // Don't exit the process on authentication failure, just log the error
+    if (error.message && !error.message.includes('GitHub authentication failed')) {
+      process.exit(1);
+    }
   });
 }
 
