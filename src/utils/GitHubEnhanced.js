@@ -4,10 +4,11 @@
  */
 
 const { Octokit } = require('@octokit/rest');
+const EventEmitter = require('events');
 const logger = require('./logger');
 const config = require('./config');
 
-class GitHubEnhanced {
+class GitHubEnhanced extends EventEmitter {
   /**
    * Initialize the GitHubEnhanced client
    * @param {Object} [options={}] - Configuration options
@@ -15,11 +16,14 @@ class GitHubEnhanced {
    * @param {string} [options.baseUrl] - GitHub API base URL (overrides config)
    */
   constructor(options = {}) {
+    super();
     this.options = options;
     this.octokit = null;
     this.authenticated = false;
     this.prAnalysisQueue = [];
     this.mergeQueue = [];
+    this.knownPRs = new Map();
+    this.knownBranches = new Map();
     
     // Initialize if token is provided
     if (options.token || config.github.token) {
@@ -55,6 +59,191 @@ class GitHubEnhanced {
       logger.logError('GitHub authentication failed', error);
       this.authenticated = false;
       throw error;
+    }
+  }
+  
+  /**
+   * Get open pull requests for a repository
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Promise<Array>} List of open PRs
+   * @throws {Error} If not authenticated or request fails
+   */
+  async getOpenPRs(owner, repo) {
+    try {
+      if (!this.authenticated) {
+        await this.authenticate();
+      }
+      
+      logger.info(`Fetching open PRs for ${owner}/${repo}`);
+      
+      const { data: prs } = await this.octokit.pulls.list({
+        owner,
+        repo,
+        state: 'open',
+        sort: 'created',
+        direction: 'desc',
+        per_page: 100
+      });
+      
+      // Check for new PRs
+      for (const pr of prs) {
+        const prKey = `${owner}/${repo}#${pr.number}`;
+        
+        if (!this.knownPRs.has(prKey)) {
+          // New PR found
+          this.knownPRs.set(prKey, {
+            number: pr.number,
+            title: pr.title,
+            createdAt: pr.created_at,
+            updatedAt: pr.updated_at
+          });
+          
+          // Emit event for new PR
+          this.emit('prCreated', {
+            repoName: `${owner}/${repo}`,
+            prNumber: pr.number,
+            title: pr.title,
+            url: pr.html_url
+          });
+          
+          logger.info(`New PR detected: ${prKey} - ${pr.title}`);
+        }
+      }
+      
+      return prs;
+    } catch (error) {
+      logger.error(`Failed to get open PRs for ${owner}/${repo}: ${error.message}`);
+      return [];
+    }
+  }
+  
+  /**
+   * Get branches for a repository
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Promise<Array>} List of branches
+   * @throws {Error} If not authenticated or request fails
+   */
+  async getBranches(owner, repo) {
+    try {
+      if (!this.authenticated) {
+        await this.authenticate();
+      }
+      
+      logger.info(`Fetching branches for ${owner}/${repo}`);
+      
+      const { data: branches } = await this.octokit.repos.listBranches({
+        owner,
+        repo,
+        per_page: 100
+      });
+      
+      // Check for new branches
+      for (const branch of branches) {
+        const branchKey = `${owner}/${repo}:${branch.name}`;
+        
+        if (!this.knownBranches.has(branchKey)) {
+          // New branch found
+          this.knownBranches.set(branchKey, {
+            name: branch.name,
+            sha: branch.commit.sha,
+            detectedAt: new Date().toISOString()
+          });
+          
+          // Emit event for new branch
+          this.emit('branchCreated', {
+            repoName: `${owner}/${repo}`,
+            branchName: branch.name,
+            sha: branch.commit.sha
+          });
+          
+          logger.info(`New branch detected: ${branchKey}`);
+        }
+      }
+      
+      return branches;
+    } catch (error) {
+      logger.error(`Failed to get branches for ${owner}/${repo}: ${error.message}`);
+      return [];
+    }
+  }
+  
+  /**
+   * Get details of a specific pull request
+   * @param {string} repoFullName - Repository name in format "owner/repo"
+   * @param {number} prNumber - Pull request number
+   * @returns {Promise<Object>} Pull request details
+   * @throws {Error} If not authenticated or request fails
+   */
+  async getPRDetails(repoFullName, prNumber) {
+    try {
+      if (!this.authenticated) {
+        await this.authenticate();
+      }
+      
+      const [owner, repo] = repoFullName.split('/');
+      
+      logger.info(`Fetching details for PR #${prNumber} in ${repoFullName}`);
+      
+      // Get PR details
+      const { data: pr } = await this.octokit.pulls.get({
+        owner,
+        repo,
+        pull_number: prNumber
+      });
+      
+      // Get PR files
+      const { data: files } = await this.octokit.pulls.listFiles({
+        owner,
+        repo,
+        pull_number: prNumber
+      });
+      
+      // Combine data
+      return {
+        ...pr,
+        files
+      };
+    } catch (error) {
+      logger.error(`Failed to get PR details for #${prNumber} in ${repoFullName}: ${error.message}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get content of a file from a repository
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {string} path - File path
+   * @param {string} [ref] - Git reference (branch, commit, tag)
+   * @returns {Promise<string>} File content
+   * @throws {Error} If not authenticated or request fails
+   */
+  async getFileContent(owner, repo, path, ref) {
+    try {
+      if (!this.authenticated) {
+        await this.authenticate();
+      }
+      
+      logger.info(`Fetching content for ${path} in ${owner}/${repo}${ref ? ` at ${ref}` : ''}`);
+      
+      const { data } = await this.octokit.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref
+      });
+      
+      // Decode content from base64
+      if (data.encoding === 'base64' && data.content) {
+        return Buffer.from(data.content, 'base64').toString('utf8');
+      }
+      
+      return null;
+    } catch (error) {
+      logger.error(`Failed to get file content for ${path} in ${owner}/${repo}: ${error.message}`);
+      return null;
     }
   }
   

@@ -117,6 +117,309 @@ class DeplaEnhanced {
     this.workflowManager.on('phaseCompleted', (data) => {
       logger.info(`Phase completed: ${data.phase.name} for workflow ${data.workflowId}`);
     });
+    
+    // GitHub events
+    this.gitHubEnhanced.on('prCreated', (data) => {
+      logger.info(`PR created: ${data.prNumber} for ${data.repoName}`);
+      this.handleNewPR(data);
+    });
+    
+    this.gitHubEnhanced.on('branchCreated', (data) => {
+      logger.info(`Branch created: ${data.branchName} for ${data.repoName}`);
+      this.handleNewBranch(data);
+    });
+  }
+  
+  /**
+   * Handle a new PR created on GitHub
+   * @param {Object} data - PR data
+   * @returns {Promise<void>}
+   */
+  async handleNewPR(data) {
+    try {
+      logger.info(`Processing new PR #${data.prNumber} for ${data.repoName}`);
+      
+      // Find the project
+      const project = this.multiProjectManager.getProjectByName(data.repoName);
+      if (!project) {
+        logger.warn(`Project not found for repo: ${data.repoName}`);
+        return;
+      }
+      
+      // Get PR details
+      const prDetails = await this.gitHubEnhanced.getPRDetails(data.repoName, data.prNumber);
+      
+      // Check if this is a step generation PR
+      const isStepGeneration = this.isStepGenerationPR(prDetails);
+      
+      if (isStepGeneration) {
+        logger.info(`PR #${data.prNumber} is a step generation PR, auto-merging`);
+        
+        // Auto-merge the PR
+        await this.gitHubEnhanced.mergePR({
+          owner: data.repoName.split('/')[0],
+          repo: data.repoName.split('/')[1],
+          pull_number: data.prNumber,
+          merge_method: 'merge'
+        });
+        
+        // Update project with new steps
+        await this.updateProjectSteps(project, prDetails);
+        
+        logger.info(`Successfully merged step generation PR #${data.prNumber} for ${data.repoName}`);
+      } else {
+        // Add to analysis queue
+        this.gitHubEnhanced.addPrToAnalysisQueue({
+          owner: data.repoName.split('/')[0],
+          repo: data.repoName.split('/')[1],
+          pull_number: data.prNumber,
+          autoMerge: this.shouldAutoMergePR(prDetails)
+        });
+        
+        logger.info(`Added PR #${data.prNumber} to analysis queue`);
+      }
+    } catch (error) {
+      logger.error(`Error handling new PR: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Handle a new branch created on GitHub
+   * @param {Object} data - Branch data
+   * @returns {Promise<void>}
+   */
+  async handleNewBranch(data) {
+    try {
+      logger.info(`Processing new branch ${data.branchName} for ${data.repoName}`);
+      
+      // Find the project
+      const project = this.multiProjectManager.getProjectByName(data.repoName);
+      if (!project) {
+        logger.warn(`Project not found for repo: ${data.repoName}`);
+        return;
+      }
+      
+      // Check if this is a feature branch
+      const isFeatureBranch = this.isFeatureBranch(data.branchName);
+      
+      if (isFeatureBranch) {
+        logger.info(`Branch ${data.branchName} is a feature branch`);
+        
+        // Update project with feature branch status
+        await this.updateFeatureBranchStatus(project, data.branchName);
+      }
+    } catch (error) {
+      logger.error(`Error handling new branch: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Check if a PR is a step generation PR
+   * @param {Object} prDetails - PR details
+   * @returns {boolean} Whether this is a step generation PR
+   */
+  isStepGenerationPR(prDetails) {
+    // Check PR title and files
+    const title = prDetails.title.toLowerCase();
+    const body = prDetails.body.toLowerCase();
+    
+    // Check for step generation indicators
+    const stepKeywords = [
+      'generate steps', 
+      'step generation', 
+      'implementation plan',
+      'steps.md',
+      'step-by-step'
+    ];
+    
+    // Check title and body for keywords
+    for (const keyword of stepKeywords) {
+      if (title.includes(keyword) || body.includes(keyword)) {
+        return true;
+      }
+    }
+    
+    // Check if PR modifies STEPS.md
+    if (prDetails.files && prDetails.files.some(file => 
+      file.filename.toLowerCase() === 'steps.md' || 
+      file.filename.toLowerCase().endsWith('/steps.md'))) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Check if a PR should be auto-merged
+   * @param {Object} prDetails - PR details
+   * @returns {boolean} Whether this PR should be auto-merged
+   */
+  shouldAutoMergePR(prDetails) {
+    // Auto-merge logic based on PR content and project configuration
+    // This is a simplified implementation
+    
+    // Don't auto-merge if PR has conflicts
+    if (prDetails.mergeable === false) {
+      return false;
+    }
+    
+    // Check for auto-merge indicators in title or body
+    const title = prDetails.title.toLowerCase();
+    const body = prDetails.body.toLowerCase();
+    
+    const autoMergeKeywords = [
+      'auto-merge',
+      'automerge',
+      'auto merge',
+      'automated update',
+      'step generation'
+    ];
+    
+    for (const keyword of autoMergeKeywords) {
+      if (title.includes(keyword) || body.includes(keyword)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Check if a branch is a feature branch
+   * @param {string} branchName - Branch name
+   * @returns {boolean} Whether this is a feature branch
+   */
+  isFeatureBranch(branchName) {
+    // Check branch naming patterns
+    const featurePrefixes = [
+      'feature/',
+      'feat/',
+      'component/',
+      'implement-'
+    ];
+    
+    for (const prefix of featurePrefixes) {
+      if (branchName.startsWith(prefix)) {
+        return true;
+      }
+    }
+    
+    // Check for feature indicators in branch name
+    const featureKeywords = [
+      '-feature-',
+      '-component-',
+      '-implementation-'
+    ];
+    
+    for (const keyword of featureKeywords) {
+      if (branchName.includes(keyword)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Update project with new steps from a PR
+   * @param {Object} project - Project object
+   * @param {Object} prDetails - PR details
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateProjectSteps(project, prDetails) {
+    try {
+      logger.info(`Updating steps for project ${project.name} from PR #${prDetails.number}`);
+      
+      // Get the STEPS.md content from the PR
+      const stepsFile = prDetails.files.find(file => 
+        file.filename.toLowerCase() === 'steps.md' || 
+        file.filename.toLowerCase().endsWith('/steps.md')
+      );
+      
+      if (!stepsFile) {
+        logger.warn(`No STEPS.md file found in PR #${prDetails.number}`);
+        return false;
+      }
+      
+      // Get file content
+      const fileContent = await this.gitHubEnhanced.getFileContent(
+        prDetails.head.repo.owner.login,
+        prDetails.head.repo.name,
+        stepsFile.filename,
+        prDetails.head.sha
+      );
+      
+      if (!fileContent) {
+        logger.warn(`Failed to get content for ${stepsFile.filename}`);
+        return false;
+      }
+      
+      // Update project steps
+      await project.updateSteps(fileContent);
+      
+      logger.info(`Successfully updated steps for project ${project.name}`);
+      return true;
+    } catch (error) {
+      logger.error(`Error updating project steps: ${error.message}`);
+      return false;
+    }
+  }
+  
+  /**
+   * Update feature branch status in project
+   * @param {Object} project - Project object
+   * @param {string} branchName - Branch name
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateFeatureBranchStatus(project, branchName) {
+    try {
+      logger.info(`Updating feature branch status for ${branchName} in project ${project.name}`);
+      
+      // Extract feature name from branch
+      let featureName = branchName;
+      
+      // Remove prefixes
+      const prefixes = ['feature/', 'feat/', 'component/', 'implement-'];
+      for (const prefix of prefixes) {
+        if (featureName.startsWith(prefix)) {
+          featureName = featureName.substring(prefix.length);
+          break;
+        }
+      }
+      
+      // Convert dashes to spaces
+      featureName = featureName.replace(/-/g, ' ');
+      
+      // Find matching component in project phases
+      let found = false;
+      
+      for (const phase of project.phases) {
+        for (const component of phase.components) {
+          // Check if component name matches feature name (case insensitive partial match)
+          if (component.name.toLowerCase().includes(featureName.toLowerCase()) ||
+              featureName.toLowerCase().includes(component.name.toLowerCase())) {
+            
+            // Mark component as in progress
+            component.inProgress = true;
+            found = true;
+            
+            logger.info(`Marked component "${component.name}" as in progress`);
+          }
+        }
+      }
+      
+      if (found) {
+        // Save updated project
+        await project.save();
+        return true;
+      } else {
+        logger.warn(`No matching component found for branch ${branchName}`);
+        return false;
+      }
+    } catch (error) {
+      logger.error(`Error updating feature branch status: ${error.message}`);
+      return false;
+    }
   }
   
   /**
@@ -500,12 +803,48 @@ class DeplaEnhanced {
       // Process PR analysis queue
       await this.gitHubEnhanced.processAnalysisQueue();
       
-      // In a real implementation, we might do other automated tasks here
+      // Process merge queue
+      await this.gitHubEnhanced.processMergeQueue();
+      
+      // Check for new PRs and branches
+      await this.checkForNewGitHubActivity();
       
     } catch (error) {
       logger.error(`Error in automation processing: ${error.message}`);
     } finally {
       this.isProcessingAutomation = false;
+    }
+  }
+  
+  /**
+   * Check for new PRs and branches on GitHub
+   * @returns {Promise<void>}
+   */
+  async checkForNewGitHubActivity() {
+    try {
+      // Get all projects
+      const projects = this.multiProjectManager.getAllProjectTabs();
+      
+      for (const project of projects) {
+        if (!project.repoUrl) continue;
+        
+        // Extract owner and repo from URL
+        const match = project.repoUrl.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
+        if (!match) continue;
+        
+        const owner = match[1];
+        const repo = match[2];
+        
+        // Check for new PRs
+        const prs = await this.gitHubEnhanced.getOpenPRs(owner, repo);
+        
+        // Check for new branches
+        const branches = await this.gitHubEnhanced.getBranches(owner, repo);
+        
+        logger.info(`Found ${prs.length} open PRs and ${branches.length} branches for ${owner}/${repo}`);
+      }
+    } catch (error) {
+      logger.error(`Error checking for new GitHub activity: ${error.message}`);
     }
   }
   
