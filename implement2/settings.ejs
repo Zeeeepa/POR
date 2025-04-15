@@ -1,0 +1,389 @@
+cat > src/views/settings.ejs << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Application Settings</h1>
+            <p>Configure your application preferences</p>
+        </header>
+        <div class="settings-container">
+            <div class="settings-sidebar">
+                <ul class="settings-nav">
+                    <li class="active" data-section="general">General</li>
+                    <li data-section="appearance">Appearance</li>
+                    <li data-section="cursor">Cursor Configuration</li>
+                    <li data-section="templates">Templates</li>
+                    <li data-section="workflows">Workflows</li>
+                    <li data-section="integrations">Integrations</li>
+                    <li data-section="advanced">Advanced</li>
+                </ul>
+            </div>
+            <div class="settings-content">
+                <div id="general" class="settings-section active">
+                    <h2>General Settings</h2>
+                    <form id="general-form">
+                        <div class="form-group">
+                            <label for="app-name">Application Name</label>
+                            <input type="text" id="app-name" name="appName" value="<%= settings.general.appName %>">
+                        </div>
+                        <div class="form-group">
+                            <label for="default-project">Default Project</label>
+                            <select id="default-project" name="defaultProject">
+                                <option value="">None</option>
+                                <% projects.forEach(function(project) { %>
+                                    <option value="<%= project.id %>" <%= settings.general.defaultProject === project.id ? 'selected' : '' %>><%= project.name %></option>
+                                <% }); %>
+                            </select>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="startOnBoot" <%= settings.general.startOnBoot ? 'checked' : '' %>>
+                                Start application on system boot
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="minimizeToTray" <%= settings.general.minimizeToTray ? 'checked' : '' %>>
+                                Minimize to system tray
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="showNotifications" <%= settings.general.showNotifications ? 'checked' : '' %>>
+                                Show desktop notifications
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="language">Language</label>
+                            <select id="language" name="language">
+                                <option value="en" <%= settings.general.language === 'en' ? 'selected' : '' %>>English</option>
+                                <option value="es" <%= settings.general.language === 'es' ? 'selected' : '' %>>Spanish</option>
+                                <option value="fr" <%= settings.general.language === 'fr' ? 'selected' : '' %>>French</option>
+                                <option value="de" <%= settings.general.language === 'de' ? 'selected' : '' %>>German</option>
+                                <option value="ja" <%= settings.general.language === 'ja' ? 'selected' : '' %>>Japanese</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save General Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="general">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="appearance" class="settings-section">
+                    <h2>Appearance Settings</h2>
+                    <form id="appearance-form">
+                        <div class="form-group">
+                            <label for="theme">Theme</label>
+                            <select id="theme" name="theme">
+                                <option value="light" <%= settings.appearance.theme === 'light' ? 'selected' : '' %>>Light</option>
+                                <option value="dark" <%= settings.appearance.theme === 'dark' ? 'selected' : '' %>>Dark</option>
+                                <option value="system" <%= settings.appearance.theme === 'system' ? 'selected' : '' %>>System Default</option>
+                                <option value="custom" <%= settings.appearance.theme === 'custom' ? 'selected' : '' %>>Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group color-picker <%= settings.appearance.theme !== 'custom' ? 'hidden' : '' %>">
+                            <label for="primary-color">Primary Color</label>
+                            <input type="color" id="primary-color" name="primaryColor" value="<%= settings.appearance.primaryColor %>">
+                        </div>
+                        <div class="form-group color-picker <%= settings.appearance.theme !== 'custom' ? 'hidden' : '' %>">
+                            <label for="secondary-color">Secondary Color</label>
+                            <input type="color" id="secondary-color" name="secondaryColor" value="<%= settings.appearance.secondaryColor %>">
+                        </div>
+                        <div class="form-group">
+                            <label for="font-size">Font Size</label>
+                            <select id="font-size" name="fontSize">
+                                <option value="small" <%= settings.appearance.fontSize === 'small' ? 'selected' : '' %>>Small</option>
+                                <option value="medium" <%= settings.appearance.fontSize === 'medium' ? 'selected' : '' %>>Medium</option>
+                                <option value="large" <%= settings.appearance.fontSize === 'large' ? 'selected' : '' %>>Large</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="toolbar-position">Toolbar Position</label>
+                            <select id="toolbar-position" name="toolbarPosition">
+                                <option value="top" <%= settings.appearance.toolbarPosition === 'top' ? 'selected' : '' %>>Top</option>
+                                <option value="bottom" <%= settings.appearance.toolbarPosition === 'bottom' ? 'selected' : '' %>>Bottom</option>
+                                <option value="left" <%= settings.appearance.toolbarPosition === 'left' ? 'selected' : '' %>>Left</option>
+                                <option value="right" <%= settings.appearance.toolbarPosition === 'right' ? 'selected' : '' %>>Right</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="toolbar-transparency">Toolbar Transparency</label>
+                            <input type="range" id="toolbar-transparency" name="toolbarTransparency" min="0" max="100" value="<%= settings.appearance.toolbarTransparency %>">
+                            <span class="range-value"><%= settings.appearance.toolbarTransparency %>%</span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Appearance Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="appearance">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="cursor" class="settings-section">
+                    <h2>Cursor Configuration</h2>
+                    <div class="cursor-settings-header">
+                        <p>Configure multiple named cursor positions for automated workflows</p>
+                        <a href="/cursor-positions" class="btn btn-primary">Open Cursor Position Manager</a>
+                    </div>
+                    <form id="cursor-form">
+                        <div class="form-group">
+                            <label for="cursor-speed">Cursor Movement Speed</label>
+                            <select id="cursor-speed" name="cursorSpeed">
+                                <option value="slow" <%= settings.cursor.cursorSpeed === 'slow' ? 'selected' : '' %>>Slow</option>
+                                <option value="medium" <%= settings.cursor.cursorSpeed === 'medium' ? 'selected' : '' %>>Medium</option>
+                                <option value="fast" <%= settings.cursor.cursorSpeed === 'fast' ? 'selected' : '' %>>Fast</option>
+                                <option value="instant" <%= settings.cursor.cursorSpeed === 'instant' ? 'selected' : '' %>>Instant</option>
+                            </select>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="showCursorPath" <%= settings.cursor.showCursorPath ? 'checked' : '' %>>
+                                Show cursor movement path
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="enableMultiCursor" <%= settings.cursor.enableMultiCursor ? 'checked' : '' %>>
+                                Enable multi-cursor support
+                            </label>
+                        </div>
+                        <div class="multi-cursor-settings <%= settings.cursor.enableMultiCursor ? '' : 'hidden' %>">
+                            <h3>Multi-Cursor Settings</h3>
+                            <div class="form-group">
+                                <label for="max-cursors">Maximum Concurrent Cursors</label>
+                                <input type="number" id="max-cursors" name="maxCursors" min="1" max="10" value="<%= settings.cursor.maxCursors %>">
+                            </div>
+                            <div class="form-group">
+                                <label for="cursor-color">Cursor Color</label>
+                                <input type="color" id="cursor-color" name="cursorColor" value="<%= settings.cursor.cursorColor %>">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label>
+                                    <input type="checkbox" name="uniqueCursorColors" <%= settings.cursor.uniqueCursorColors ? 'checked' : '' %>>
+                                    Use unique colors for each cursor
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="cursor-size">Cursor Size</label>
+                                <select id="cursor-size" name="cursorSize">
+                                    <option value="small" <%= settings.cursor.cursorSize === 'small' ? 'selected' : '' %>>Small</option>
+                                    <option value="medium" <%= settings.cursor.cursorSize === 'medium' ? 'selected' : '' %>>Medium</option>
+                                    <option value="large" <%= settings.cursor.cursorSize === 'large' ? 'selected' : '' %>>Large</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="cursor-style">Cursor Style</label>
+                                <select id="cursor-style" name="cursorStyle">
+                                    <option value="arrow" <%= settings.cursor.cursorStyle === 'arrow' ? 'selected' : '' %>>Arrow</option>
+                                    <option value="circle" <%= settings.cursor.cursorStyle === 'circle' ? 'selected' : '' %>>Circle</option>
+                                    <option value="crosshair" <%= settings.cursor.cursorStyle === 'crosshair' ? 'selected' : '' %>>Crosshair</option>
+                                    <option value="custom" <%= settings.cursor.cursorStyle === 'custom' ? 'selected' : '' %>>Custom</option>
+                                </select>
+                            </div>
+                            <div class="form-group <%= settings.cursor.cursorStyle !== 'custom' ? 'hidden' : '' %>">
+                                <label for="custom-cursor">Custom Cursor Image</label>
+                                <input type="file" id="custom-cursor" name="customCursor" accept="image/*">
+                                <% if (settings.cursor.customCursorPath) { %>
+                                    <div class="current-custom-cursor">
+                                        <p>Current custom cursor:</p>
+                                        <img src="<%= settings.cursor.customCursorPath %>" alt="Custom cursor">
+                                    </div>
+                                <% } %>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Cursor Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="cursor">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="templates" class="settings-section">
+                    <h2>Template Settings</h2>
+                    <div class="template-settings-header">
+                        <p>Configure templates for automated workflows</p>
+                        <a href="/template-manager" class="btn btn-primary">Open Template Manager</a>
+                    </div>
+                    <form id="templates-form">
+                        <div class="form-group">
+                            <label for="default-template-folder">Default Template Folder</label>
+                            <div class="input-with-button">
+                                <input type="text" id="default-template-folder" name="defaultTemplateFolder" value="<%= settings.templates.defaultTemplateFolder %>">
+                                <button type="button" class="btn btn-secondary browse-folder">Browse</button>
+                            </div>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="autoSaveTemplates" <%= settings.templates.autoSaveTemplates ? 'checked' : '' %>>
+                                Auto-save templates
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="enableTemplateVersioning" <%= settings.templates.enableTemplateVersioning ? 'checked' : '' %>>
+                                Enable template versioning
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="max-template-versions">Maximum Template Versions</label>
+                            <input type="number" id="max-template-versions" name="maxTemplateVersions" min="1" max="100" value="<%= settings.templates.maxTemplateVersions %>">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Template Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="templates">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="workflows" class="settings-section">
+                    <h2>Workflow Settings</h2>
+                    <div class="workflow-settings-header">
+                        <p>Configure workflow behavior and defaults</p>
+                        <a href="/phase-editor" class="btn btn-primary">Open Phase Editor</a>
+                    </div>
+                    <form id="workflows-form">
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="autoStartWorkflows" <%= settings.workflows.autoStartWorkflows ? 'checked' : '' %>>
+                                Auto-start workflows on project open
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="confirmPhaseCompletion" <%= settings.workflows.confirmPhaseCompletion ? 'checked' : '' %>>
+                                Confirm phase completion
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="showPhaseTimer" <%= settings.workflows.showPhaseTimer ? 'checked' : '' %>>
+                                Show phase timer
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="default-phase-duration">Default Phase Duration (minutes)</label>
+                            <input type="number" id="default-phase-duration" name="defaultPhaseDuration" min="1" value="<%= settings.workflows.defaultPhaseDuration %>">
+                        </div>
+                        <div class="form-group">
+                            <label for="workflow-log-level">Workflow Log Level</label>
+                            <select id="workflow-log-level" name="workflowLogLevel">
+                                <option value="error" <%= settings.workflows.workflowLogLevel === 'error' ? 'selected' : '' %>>Error</option>
+                                <option value="warning" <%= settings.workflows.workflowLogLevel === 'warning' ? 'selected' : '' %>>Warning</option>
+                                <option value="info" <%= settings.workflows.workflowLogLevel === 'info' ? 'selected' : '' %>>Info</option>
+                                <option value="debug" <%= settings.workflows.workflowLogLevel === 'debug' ? 'selected' : '' %>>Debug</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Workflow Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="workflows">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="integrations" class="settings-section">
+                    <h2>Integration Settings</h2>
+                    <form id="integrations-form">
+                        <div class="integration-section">
+                            <h3>GitHub Integration</h3>
+                            <div class="form-group">
+                                <label for="github-username">GitHub Username</label>
+                                <input type="text" id="github-username" name="githubUsername" value="<%= settings.integrations.github.username %>">
+                            </div>
+                            <div class="form-group">
+                                <label for="github-token">GitHub Token</label>
+                                <input type="password" id="github-token" name="githubToken" value="<%= settings.integrations.github.token %>">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label>
+                                    <input type="checkbox" name="githubNotifications" <%= settings.integrations.github.notifications ? 'checked' : '' %>>
+                                    Enable GitHub notifications
+                                </label>
+                            </div>
+                        </div>
+                        <div class="integration-section">
+                            <h3>Linear Integration</h3>
+                            <div class="form-group">
+                                <label for="linear-api-key">Linear API Key</label>
+                                <input type="password" id="linear-api-key" name="linearApiKey" value="<%= settings.integrations.linear.apiKey %>">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label>
+                                    <input type="checkbox" name="linearNotifications" <%= settings.integrations.linear.notifications ? 'checked' : '' %>>
+                                    Enable Linear notifications
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Integration Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="integrations">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="advanced" class="settings-section">
+                    <h2>Advanced Settings</h2>
+                    <div class="warning-box">
+                        <p>Warning: These settings are for advanced users only. Incorrect settings may cause the application to malfunction.</p>
+                    </div>
+                    <form id="advanced-form">
+                        <div class="form-group">
+                            <label for="log-level">Log Level</label>
+                            <select id="log-level" name="logLevel">
+                                <option value="error" <%= settings.advanced.logLevel === 'error' ? 'selected' : '' %>>Error</option>
+                                <option value="warning" <%= settings.advanced.logLevel === 'warning' ? 'selected' : '' %>>Warning</option>
+                                <option value="info" <%= settings.advanced.logLevel === 'info' ? 'selected' : '' %>>Info</option>
+                                <option value="debug" <%= settings.advanced.logLevel === 'debug' ? 'selected' : '' %>>Debug</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="log-file">Log File Path</label>
+                            <div class="input-with-button">
+                                <input type="text" id="log-file" name="logFile" value="<%= settings.advanced.logFile %>">
+                                <button type="button" class="btn btn-secondary browse-file">Browse</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="data-directory">Data Directory</label>
+                            <div class="input-with-button">
+                                <input type="text" id="data-directory" name="dataDirectory" value="<%= settings.advanced.dataDirectory %>">
+                                <button type="button" class="btn btn-secondary browse-folder">Browse</button>
+                            </div>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="enableDevTools" <%= settings.advanced.enableDevTools ? 'checked' : '' %>>
+                                Enable Developer Tools
+                            </label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" name="enableExperimentalFeatures" <%= settings.advanced.enableExperimentalFeatures ? 'checked' : '' %>>
+                                Enable Experimental Features
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Advanced Settings</button>
+                            <button type="button" class="btn btn-secondary reset-settings" data-section="advanced">Reset to Default</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="reset-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Confirm Reset</h2>
+            <p>Are you sure you want to reset these settings to their default values? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="confirm-reset" class="btn btn-danger">Reset</button>
+                <button id="cancel-reset" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <script src="/js/settings.js"></script>
+</body>
+</html>
+EOL

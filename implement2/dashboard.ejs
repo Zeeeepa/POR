@@ -1,0 +1,266 @@
+cat > src/views/dashboard.ejs << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dashboard</h1>
+            <p>Overview of your projects and workflows</p>
+        </header>
+        <div class="dashboard-controls">
+            <button id="new-project" class="btn btn-primary">New Project</button>
+            <button id="import-project" class="btn btn-secondary">Import Project</button>
+            <div class="search-container">
+                <input type="text" id="project-search" placeholder="Search projects...">
+            </div>
+            <div class="view-options">
+                <button class="view-option active" data-view="grid">
+                    <i class="icon-grid"></i>
+                </button>
+                <button class="view-option" data-view="list">
+                    <i class="icon-list"></i>
+                </button>
+            </div>
+        </div>
+        <div class="dashboard-summary">
+            <div class="summary-card">
+                <h3>Total Projects</h3>
+                <div class="summary-value"><%= stats.totalProjects %></div>
+            </div>
+            <div class="summary-card">
+                <h3>Active Projects</h3>
+                <div class="summary-value"><%= stats.activeProjects %></div>
+            </div>
+            <div class="summary-card">
+                <h3>Active Workflows</h3>
+                <div class="summary-value"><%= stats.activeWorkflows %></div>
+            </div>
+            <div class="summary-card">
+                <h3>Completed Today</h3>
+                <div class="summary-value"><%= stats.completedToday %></div>
+            </div>
+        </div>
+        <div class="dashboard-charts">
+            <div class="chart-container">
+                <h3>Project Status Distribution</h3>
+                <canvas id="status-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Workflow Completion Trend</h3>
+                <canvas id="trend-chart"></canvas>
+            </div>
+        </div>
+        <div class="projects-container">
+            <div class="projects-header">
+                <h2>Your Projects</h2>
+                <div class="filter-container">
+                    <label for="status-filter">Status:</label>
+                    <select id="status-filter">
+                        <option value="all">All</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                        <option value="paused">Paused</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </div>
+                <div class="filter-container">
+                    <label for="sort-by">Sort by:</label>
+                    <select id="sort-by">
+                        <option value="name">Name</option>
+                        <option value="created">Created Date</option>
+                        <option value="updated">Last Updated</option>
+                        <option value="priority">Priority</option>
+                    </select>
+                </div>
+            </div>
+            <div class="projects-grid view-active">
+                <% projects.forEach(function(project) { %>
+                    <div class="project-card" data-id="<%= project.id %>" data-status="<%= project.status.toLowerCase() %>">
+                        <div class="project-header">
+                            <h3><%= project.name %></h3>
+                            <span class="status-badge <%= project.status.toLowerCase() %>"><%= project.status %></span>
+                        </div>
+                        <div class="project-description">
+                            <p><%= project.description %></p>
+                        </div>
+                        <div class="project-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Created:</span>
+                                <span class="meta-value"><%= project.createdAt %></span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Owner:</span>
+                                <span class="meta-value"><%= project.owner %></span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Priority:</span>
+                                <span class="meta-value priority-badge <%= project.priority.toLowerCase() %>"><%= project.priority %></span>
+                            </div>
+                        </div>
+                        <div class="project-stats">
+                            <div class="stat-item">
+                                <span class="stat-value"><%= project.stats.workflows %></span>
+                                <span class="stat-label">Workflows</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value"><%= project.stats.active %></span>
+                                <span class="stat-label">Active</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value"><%= project.stats.completed %></span>
+                                <span class="stat-label">Completed</span>
+                            </div>
+                        </div>
+                        <div class="project-actions">
+                            <a href="/project/<%= project.id %>" class="btn btn-primary">View</a>
+                            <button class="btn-start-workflow" data-id="<%= project.id %>">Start Workflow</button>
+                            <button class="btn-more-options" data-id="<%= project.id %>">
+                                <i class="icon-more"></i>
+                            </button>
+                        </div>
+                    </div>
+                <% }); %>
+            </div>
+            <div class="projects-list">
+                <table class="projects-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Owner</th>
+                            <th>Priority</th>
+                            <th>Created</th>
+                            <th>Workflows</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% projects.forEach(function(project) { %>
+                            <tr class="project-row" data-id="<%= project.id %>" data-status="<%= project.status.toLowerCase() %>">
+                                <td><%= project.name %></td>
+                                <td><span class="status-badge <%= project.status.toLowerCase() %>"><%= project.status %></span></td>
+                                <td><%= project.owner %></td>
+                                <td><span class="priority-badge <%= project.priority.toLowerCase() %>"><%= project.priority %></span></td>
+                                <td><%= project.createdAt %></td>
+                                <td><%= project.stats.workflows %> (<%= project.stats.active %> active)</td>
+                                <td class="actions">
+                                    <a href="/project/<%= project.id %>" class="btn btn-primary btn-sm">View</a>
+                                    <button class="btn-start-workflow btn-sm" data-id="<%= project.id %>">Start</button>
+                                    <button class="btn-more-options btn-sm" data-id="<%= project.id %>">
+                                        <i class="icon-more"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="recent-activity">
+            <h2>Recent Activity</h2>
+            <ul class="activity-list">
+                <% activities.forEach(function(activity) { %>
+                    <li class="activity-item">
+                        <div class="activity-time"><%= activity.time %></div>
+                        <div class="activity-icon <%= activity.type %>"></div>
+                        <div class="activity-content">
+                            <div class="activity-title"><%= activity.title %></div>
+                            <div class="activity-description"><%= activity.description %></div>
+                        </div>
+                    </li>
+                <% }); %>
+            </ul>
+        </div>
+    </div>
+    <div id="project-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="project-modal-title">New Project</h2>
+            <form id="project-form">
+                <div class="form-group">
+                    <label for="project-name">Project Name</label>
+                    <input type="text" id="project-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="project-description">Description</label>
+                    <textarea id="project-description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="project-priority">Priority</label>
+                    <select id="project-priority" name="priority">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="project-template">Project Template</label>
+                    <select id="project-template" name="templateId">
+                        <option value="">None</option>
+                        <% templates.forEach(function(template) { %>
+                            <option value="<%= template.id %>"><%= template.name %></option>
+                        <% }); %>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Create Project</button>
+                    <button type="button" id="cancel-project" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="workflow-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Start Workflow</h2>
+            <form id="workflow-form">
+                <div class="form-group">
+                    <label for="workflow-select">Select Workflow</label>
+                    <select id="workflow-select" name="workflowId" required>
+                        <option value="">Select a workflow...</option>
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="workflow-name">Workflow Name</label>
+                    <input type="text" id="workflow-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="workflow-description">Description</label>
+                    <textarea id="workflow-description" name="description" rows="2"></textarea>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" name="autoAdvance" checked>
+                        Auto-advance through phases
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Start Workflow</button>
+                    <button type="button" id="cancel-workflow" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="context-menu" class="context-menu">
+        <ul>
+            <li data-action="edit">Edit Project</li>
+            <li data-action="duplicate">Duplicate Project</li>
+            <li data-action="archive">Archive Project</li>
+            <li data-action="export">Export Project</li>
+            <li data-action="delete" class="danger">Delete Project</li>
+        </ul>
+    </div>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>
+EOL

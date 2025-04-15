@@ -1,0 +1,559 @@
+cat > src/views/batch-import.ejs << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Import</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Batch Import</h1>
+            <p>Import and process multiple items at once</p>
+        </header>
+        <div class="tabs">
+            <div class="tab-header">
+                <button class="tab-button active" data-tab="templates">Templates</button>
+                <button class="tab-button" data-tab="projects">Projects</button>
+                <button class="tab-button" data-tab="workflows">Workflows</button>
+                <button class="tab-button" data-tab="cursor-positions">Cursor Positions</button>
+                <button class="tab-button" data-tab="resources">Resources</button>
+            </div>
+            <div id="templates" class="tab-content active">
+                <div class="batch-header">
+                    <h2>Batch Import Templates</h2>
+                    <div class="batch-actions">
+                        <button id="download-template-sample" class="btn btn-secondary">Download Sample</button>
+                        <button id="clear-templates" class="btn btn-secondary">Clear All</button>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <div class="import-option">
+                        <h3>Import from File</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="template-file">JSON or CSV File</label>
+                                <input type="file" id="template-file" name="templateFile" accept=".json,.csv">
+                            </div>
+                            <button id="load-template-file" class="btn btn-primary">Load File</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Import from Directory</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="template-directory">Template Directory</label>
+                                <div class="input-with-button">
+                                    <input type="text" id="template-directory" name="templateDirectory">
+                                    <button id="browse-template-directory" class="btn btn-secondary">Browse</button>
+                                </div>
+                            </div>
+                            <button id="load-template-directory" class="btn btn-primary">Load Directory</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Paste JSON or CSV</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <textarea id="template-json" name="templateJson" rows="6" placeholder="Paste JSON or CSV data here"></textarea>
+                            </div>
+                            <button id="parse-template-json" class="btn btn-primary">Parse Data</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="batch-preview">
+                    <h3>Preview (<span id="template-count">0</span> templates)</h3>
+                    <div class="preview-controls">
+                        <div class="search-container">
+                            <input type="text" id="template-search" placeholder="Search templates...">
+                        </div>
+                        <div class="batch-selection">
+                            <button id="select-all-templates" class="btn btn-secondary">Select All</button>
+                            <button id="deselect-all-templates" class="btn btn-secondary">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="preview-table-container">
+                        <table class="preview-table" id="templates-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="template-select-all"></th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Category</th>
+                                    <th>Variables</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Template rows will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <h3>Import Options</h3>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="template-overwrite" name="templateOverwrite">
+                            Overwrite existing templates with the same name
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="template-keep-id" name="templateKeepId">
+                            Keep original IDs (if available)
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="template-category">Default Category</label>
+                        <select id="template-category" name="templateCategory">
+                            <option value="general">General</option>
+                            <option value="github">GitHub</option>
+                            <option value="linear">Linear</option>
+                            <option value="workflow">Workflow</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="batch-actions">
+                    <button id="import-templates" class="btn btn-primary">Import Selected Templates</button>
+                    <button id="cancel-template-import" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+            <div id="projects" class="tab-content">
+                <div class="batch-header">
+                    <h2>Batch Import Projects</h2>
+                    <div class="batch-actions">
+                        <button id="download-project-sample" class="btn btn-secondary">Download Sample</button>
+                        <button id="clear-projects" class="btn btn-secondary">Clear All</button>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <div class="import-option">
+                        <h3>Import from File</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="project-file">JSON or CSV File</label>
+                                <input type="file" id="project-file" name="projectFile" accept=".json,.csv">
+                            </div>
+                            <button id="load-project-file" class="btn btn-primary">Load File</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Import from Directory</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="project-directory">Project Directory</label>
+                                <div class="input-with-button">
+                                    <input type="text" id="project-directory" name="projectDirectory">
+                                    <button id="browse-project-directory" class="btn btn-secondary">Browse</button>
+                                </div>
+                            </div>
+                            <button id="load-project-directory" class="btn btn-primary">Load Directory</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Paste JSON or CSV</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <textarea id="project-json" name="projectJson" rows="6" placeholder="Paste JSON or CSV data here"></textarea>
+                            </div>
+                            <button id="parse-project-json" class="btn btn-primary">Parse Data</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="batch-preview">
+                    <h3>Preview (<span id="project-count">0</span> projects)</h3>
+                    <div class="preview-controls">
+                        <div class="search-container">
+                            <input type="text" id="project-search" placeholder="Search projects...">
+                        </div>
+                        <div class="batch-selection">
+                            <button id="select-all-projects" class="btn btn-secondary">Select All</button>
+                            <button id="deselect-all-projects" class="btn btn-secondary">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="preview-table-container">
+                        <table class="preview-table" id="projects-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="project-select-all"></th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Project rows will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <h3>Import Options</h3>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="project-overwrite" name="projectOverwrite">
+                            Overwrite existing projects with the same name
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="project-keep-id" name="projectKeepId">
+                            Keep original IDs (if available)
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="project-import-phases" name="projectImportPhases" checked>
+                            Import associated phases
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="project-import-resources" name="projectImportResources" checked>
+                            Import associated resources
+                        </label>
+                    </div>
+                </div>
+                <div class="batch-actions">
+                    <button id="import-projects" class="btn btn-primary">Import Selected Projects</button>
+                    <button id="cancel-project-import" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+            <div id="workflows" class="tab-content">
+                <div class="batch-header">
+                    <h2>Batch Import Workflows</h2>
+                    <div class="batch-actions">
+                        <button id="download-workflow-sample" class="btn btn-secondary">Download Sample</button>
+                        <button id="clear-workflows" class="btn btn-secondary">Clear All</button>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <div class="import-option">
+                        <h3>Import from File</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="workflow-file">JSON or CSV File</label>
+                                <input type="file" id="workflow-file" name="workflowFile" accept=".json,.csv">
+                            </div>
+                            <button id="load-workflow-file" class="btn btn-primary">Load File</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Paste JSON or CSV</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <textarea id="workflow-json" name="workflowJson" rows="6" placeholder="Paste JSON or CSV data here"></textarea>
+                            </div>
+                            <button id="parse-workflow-json" class="btn btn-primary">Parse Data</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="batch-preview">
+                    <h3>Preview (<span id="workflow-count">0</span> workflows)</h3>
+                    <div class="preview-controls">
+                        <div class="search-container">
+                            <input type="text" id="workflow-search" placeholder="Search workflows...">
+                        </div>
+                        <div class="batch-selection">
+                            <button id="select-all-workflows" class="btn btn-secondary">Select All</button>
+                            <button id="deselect-all-workflows" class="btn btn-secondary">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="preview-table-container">
+                        <table class="preview-table" id="workflows-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="workflow-select-all"></th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Project</th>
+                                    <th>Phases</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Workflow rows will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <h3>Import Options</h3>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="workflow-overwrite" name="workflowOverwrite">
+                            Overwrite existing workflows with the same name
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="workflow-keep-id" name="workflowKeepId">
+                            Keep original IDs (if available)
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="workflow-project">Default Project</label>
+                        <select id="workflow-project" name="workflowProject">
+                            <option value="">None</option>
+                            <% projects.forEach(function(project) { %>
+                                <option value="<%= project.id %>"><%= project.name %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+                </div>
+                <div class="batch-actions">
+                    <button id="import-workflows" class="btn btn-primary">Import Selected Workflows</button>
+                    <button id="cancel-workflow-import" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+            <div id="cursor-positions" class="tab-content">
+                <div class="batch-header">
+                    <h2>Batch Import Cursor Positions</h2>
+                    <div class="batch-actions">
+                        <button id="download-position-sample" class="btn btn-secondary">Download Sample</button>
+                        <button id="clear-positions" class="btn btn-secondary">Clear All</button>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <div class="import-option">
+                        <h3>Import from File</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="position-file">JSON or CSV File</label>
+                                <input type="file" id="position-file" name="positionFile" accept=".json,.csv">
+                            </div>
+                            <button id="load-position-file" class="btn btn-primary">Load File</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Paste JSON or CSV</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <textarea id="position-json" name="positionJson" rows="6" placeholder="Paste JSON or CSV data here"></textarea>
+                            </div>
+                            <button id="parse-position-json" class="btn btn-primary">Parse Data</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="batch-preview">
+                    <h3>Preview (<span id="position-count">0</span> cursor positions)</h3>
+                    <div class="preview-controls">
+                        <div class="search-container">
+                            <input type="text" id="position-search" placeholder="Search positions...">
+                        </div>
+                        <div class="batch-selection">
+                            <button id="select-all-positions" class="btn btn-secondary">Select All</button>
+                            <button id="deselect-all-positions" class="btn btn-secondary">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="preview-table-container">
+                        <table class="preview-table" id="positions-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="position-select-all"></th>
+                                    <th>Name</th>
+                                    <th>X</th>
+                                    <th>Y</th>
+                                    <th>Description</th>
+                                    <th>Application</th>
+                                    <th>Group</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Position rows will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <h3>Import Options</h3>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="position-overwrite" name="positionOverwrite">
+                            Overwrite existing positions with the same name
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="position-keep-id" name="positionKeepId">
+                            Keep original IDs (if available)
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="position-group">Default Group</label>
+                        <select id="position-group" name="positionGroup">
+                            <option value="default">Default</option>
+                            <option value="workflow">Workflow</option>
+                            <option value="application">Application Specific</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="batch-actions">
+                    <button id="import-positions" class="btn btn-primary">Import Selected Positions</button>
+                    <button id="cancel-position-import" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+            <div id="resources" class="tab-content">
+                <div class="batch-header">
+                    <h2>Batch Import Resources</h2>
+                    <div class="batch-actions">
+                        <button id="download-resource-sample" class="btn btn-secondary">Download Sample</button>
+                        <button id="clear-resources" class="btn btn-secondary">Clear All</button>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <div class="import-option">
+                        <h3>Import from Files</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="resource-files">Select Files</label>
+                                <input type="file" id="resource-files" name="resourceFiles" multiple>
+                            </div>
+                            <button id="load-resource-files" class="btn btn-primary">Load Files</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Import from Directory</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="resource-directory">Resource Directory</label>
+                                <div class="input-with-button">
+                                    <input type="text" id="resource-directory" name="resourceDirectory">
+                                    <button id="browse-resource-directory" class="btn btn-secondary">Browse</button>
+                                </div>
+                            </div>
+                            <button id="load-resource-directory" class="btn btn-primary">Load Directory</button>
+                        </div>
+                    </div>
+                    <div class="import-option">
+                        <h3>Import from Metadata File</h3>
+                        <div class="import-form">
+                            <div class="form-group">
+                                <label for="resource-metadata">JSON or CSV Metadata File</label>
+                                <input type="file" id="resource-metadata" name="resourceMetadata" accept=".json,.csv">
+                            </div>
+                            <button id="load-resource-metadata" class="btn btn-primary">Load Metadata</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="batch-preview">
+                    <h3>Preview (<span id="resource-count">0</span> resources)</h3>
+                    <div class="preview-controls">
+                        <div class="search-container">
+                            <input type="text" id="resource-search" placeholder="Search resources...">
+                        </div>
+                        <div class="batch-selection">
+                            <button id="select-all-resources" class="btn btn-secondary">Select All</button>
+                            <button id="deselect-all-resources" class="btn btn-secondary">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="preview-table-container">
+                        <table class="preview-table" id="resources-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="resource-select-all"></th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th>Description</th>
+                                    <th>Project</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Resource rows will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <h3>Import Options</h3>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="resource-overwrite" name="resourceOverwrite">
+                            Overwrite existing resources with the same name
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="resource-keep-id" name="resourceKeepId">
+                            Keep original IDs (if available)
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="resource-project">Default Project</label>
+                        <select id="resource-project" name="resourceProject">
+                            <option value="">None</option>
+                            <% projects.forEach(function(project) { %>
+                                <option value="<%= project.id %>"><%= project.name %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="resource-type">Default Resource Type</label>
+                        <select id="resource-type" name="resourceType">
+                            <option value="file">File</option>
+                            <option value="link">Link</option>
+                            <option value="note">Note</option>
+                            <option value="template">Template</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="batch-actions">
+                    <button id="import-resources" class="btn btn-primary">Import Selected Resources</button>
+                    <button id="cancel-resource-import" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="preview-modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close">&times;</span>
+            <h2 id="preview-modal-title">Preview Item</h2>
+            <div id="preview-content">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-actions">
+                <button id="close-preview" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="edit-modal-title">Edit Item</h2>
+            <form id="edit-form">
+                <!-- Form fields will be added dynamically -->
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" id="cancel-edit" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="import-result-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Import Results</h2>
+            <div id="import-result-content">
+                <!-- Results will be added dynamically -->
+            </div>
+            <div class="modal-actions">
+                <button id="close-import-result" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+    <script src="/js/batch-import.js"></script>
+</body>
+</html>
+EOL
