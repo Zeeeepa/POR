@@ -1,147 +1,145 @@
 /**
- * Example usage of the WebhookManager
- * This demonstrates the consolidated approach to webhook management
+ * Example usage of the WebhookServerManager
+ * Demonstrates how to set up and use the webhook module
  */
 
-require('dotenv').config();
-const WebhookManager = require('./WebhookManager');
+const dotenv = require('dotenv');
+dotenv.config();
+
+const WebhookServerManager = require('./WebhookServerManager');
 const logger = require('../utils/logger');
-const errorHandler = require('../utils/errorHandler');
 
 // Load environment variables
 const PORT = process.env.PORT || 3000;
-const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const NGROK_AUTH_TOKEN = process.env.NGROK_AUTH_TOKEN;
-const GITHUB_OWNER = process.env.GITHUB_OWNER;
-const GITHUB_REPO = process.env.GITHUB_REPO;
+const USE_NGROK = process.env.USE_NGROK === 'true';
 
-// Initialize the webhook manager
-const webhookManager = new WebhookManager({
+// Create webhook manager
+const webhookManager = new WebhookServerManager({
   port: PORT,
-  webhookSecret: GITHUB_WEBHOOK_SECRET,
+  webhookSecret: WEBHOOK_SECRET,
   githubToken: GITHUB_TOKEN,
+  useNgrok: USE_NGROK,
   ngrokOptions: {
-    authtoken: NGROK_AUTH_TOKEN
-  },
-  useNgrok: true // Enable ngrok by default
+    authtoken: process.env.NGROK_AUTH_TOKEN,
+    region: process.env.NGROK_REGION || 'us'
+  }
 });
 
 // Register event handlers
-// Push event handler
 webhookManager.registerEventHandler('push', async (payload) => {
   try {
-    const { repository, ref, commits, sender } = payload;
-    const branch = ref.replace('refs/heads/', '');
+    const repo = payload.repository.full_name;
+    const branch = payload.ref.replace('refs/heads/', '');
+    const commits = payload.commits || [];
     
-    logger.info(`Received push to ${repository.full_name} on branch ${branch} by ${sender.login}`);
-    logger.info(`Commits: ${commits ? commits.length : 0}`);
+    logger.info(`Received push event for ${repo} on branch ${branch} with ${commits.length} commits`);
     
-    // Here you would add your business logic for handling push events
+    // Process commits
+    for (const commit of commits) {
+      logger.info(`Commit ${commit.id.substring(0, 7)} by ${commit.author.name}: ${commit.message}`);
+    }
   } catch (error) {
     logger.error('Error handling push event', { error: error.stack });
-    throw errorHandler.webhookError(`Failed to process push event: ${error.message}`);
   }
 });
 
-// Pull request event handler
 webhookManager.registerEventHandler('pull_request', async (payload) => {
   try {
-    const { action, pull_request, repository } = payload;
+    const action = payload.action;
+    const prNumber = payload.number;
+    const repo = payload.repository.full_name;
+    const title = payload.pull_request.title;
     
-    logger.info(`Received pull_request event: ${action}`);
-    logger.info(`PR #${pull_request.number}: ${pull_request.title}`);
-    logger.info(`Repository: ${repository.full_name}`);
+    logger.info(`Received pull_request event: ${action} PR #${prNumber} on ${repo}: ${title}`);
     
-    // Here you would add your business logic for handling PR events
+    // Handle different PR actions
+    switch (action) {
+      case 'opened':
+        logger.info(`New PR opened: ${title}`);
+        break;
+      case 'closed':
+        if (payload.pull_request.merged) {
+          logger.info(`PR #${prNumber} was merged`);
+        } else {
+          logger.info(`PR #${prNumber} was closed without merging`);
+        }
+        break;
+      default:
+        logger.info(`PR #${prNumber} ${action}`);
+    }
   } catch (error) {
     logger.error('Error handling pull_request event', { error: error.stack });
-    throw errorHandler.webhookError(`Failed to process pull_request event: ${error.message}`);
   }
 });
 
-// Issues event handler
 webhookManager.registerEventHandler('issues', async (payload) => {
   try {
-    const { action, issue, repository } = payload;
+    const action = payload.action;
+    const issueNumber = payload.issue.number;
+    const repo = payload.repository.full_name;
+    const title = payload.issue.title;
     
-    logger.info(`Received issues event: ${action}`);
-    logger.info(`Issue #${issue.number}: ${issue.title}`);
-    logger.info(`Repository: ${repository.full_name}`);
+    logger.info(`Received issues event: ${action} issue #${issueNumber} on ${repo}: ${title}`);
     
-    // Here you would add your business logic for handling issue events
+    // Handle different issue actions
+    switch (action) {
+      case 'opened':
+        logger.info(`New issue opened: ${title}`);
+        break;
+      case 'closed':
+        logger.info(`Issue #${issueNumber} was closed`);
+        break;
+      default:
+        logger.info(`Issue #${issueNumber} ${action}`);
+    }
   } catch (error) {
     logger.error('Error handling issues event', { error: error.stack });
-    throw errorHandler.webhookError(`Failed to process issues event: ${error.message}`);
   }
 });
 
-// Start server and set up webhook
-async function main() {
+// Start the webhook server
+async function start() {
   try {
-    // Start the webhook manager
     const serverInfo = await webhookManager.start();
-    logger.info(`Webhook server started on port ${PORT}`);
-    logger.info(`Webhook URL: ${serverInfo.url}`);
-    logger.info(`Dashboard URL: ${serverInfo.dashboardUrl}`);
+    logger.info(`Webhook server started on ${serverInfo.url}`);
     
-    // Set up webhook for repository if configured
-    if (GITHUB_OWNER && GITHUB_REPO) {
-      try {
-        const webhook = await webhookManager.setupWebhook({
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
-          events: ['push', 'pull_request', 'issues']
-        });
-        
-        logger.info(`Webhook created successfully for ${GITHUB_OWNER}/${GITHUB_REPO}`);
-        logger.info(`Webhook ID: ${webhook.id}`);
-      } catch (error) {
-        if (error.name === errorHandler.ErrorTypes.VALIDATION) {
-          logger.error(`Invalid repository configuration: ${error.message}`);
-        } else {
-          logger.error(`Failed to set up webhook: ${error.message}`, { error: error.stack });
-        }
-      }
-    } else {
-      logger.info('GITHUB_OWNER or GITHUB_REPO not configured. Skipping webhook setup.');
-      logger.info(`Use this URL for your webhook: ${serverInfo.url}`);
+    if (serverInfo.ngrokUrl) {
+      logger.info(`ngrok tunnel available at ${serverInfo.ngrokUrl}`);
     }
     
-    return serverInfo;
+    // Set up a webhook for a repository
+    if (process.env.SETUP_WEBHOOK === 'true' && process.env.REPO_OWNER && process.env.REPO_NAME) {
+      const webhook = await webhookManager.setupWebhook({
+        owner: process.env.REPO_OWNER,
+        repo: process.env.REPO_NAME,
+        events: ['push', 'pull_request', 'issues']
+      });
+      
+      logger.info(`Webhook set up for ${process.env.REPO_OWNER}/${process.env.REPO_NAME}`);
+      logger.info(`Webhook ID: ${webhook.id}`);
+    }
+    
+    // Handle graceful shutdown
+    process.on('SIGINT', async () => {
+      logger.info('Shutting down...');
+      await webhookManager.stop();
+      process.exit(0);
+    });
   } catch (error) {
-    logger.error(`Failed to start webhook manager: ${error.message}`, { error: error.stack });
-    throw error;
+    logger.error('Failed to start webhook server', { error: error.stack });
+    process.exit(1);
   }
 }
 
-// Handle graceful shutdown
-function shutdown() {
-  logger.info('Shutting down webhook manager...');
-  webhookManager.stop()
-    .then(() => {
-      logger.info('Manager stopped successfully');
-      process.exit(0);
-    })
-    .catch(error => {
-      logger.error(`Error during shutdown: ${error.message}`, { error: error.stack });
-      process.exit(1);
-    });
-}
-
-// Register shutdown handlers
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-
-// Run if this file is executed directly
-if (require.main === module) {
-  main().catch(error => {
-    logger.error(`Server failed to start: ${error.message}`, { error: error.stack });
-    process.exit(1);
-  });
-}
-
+// Export for testing
 module.exports = {
+  start,
   webhookManager,
-  start: main
 };
+
+// Start if this file is run directly
+if (require.main === module) {
+  start();
+}

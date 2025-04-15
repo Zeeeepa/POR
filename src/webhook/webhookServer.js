@@ -26,39 +26,52 @@ class WebhookServer {
    * @param {Object} [options.ngrokOptions] - ngrok configuration options
    */
   constructor(options = {}) {
-    this.port = options.port || 3000;
-    this.path = options.path || '/webhook';
-    this.webhookSecret = options.webhookSecret;
-    this.githubToken = options.githubToken;
-    this.ngrokOptions = options.ngrokOptions || {};
-    
-    this.app = express();
-    this.eventHandlers = {};
-    this.server = null;
-    this.ngrokUrl = null;
-    this.ngrokManager = new NgrokManager(this.ngrokOptions);
-    
-    // Validate required options
-    if (!this.webhookSecret) {
-      logger.warn('No webhook secret provided. Payload verification will be disabled.');
+    try {
+      validation.isObject(options, 'options');
+      
+      this.port = options.port || 3000;
+      this.path = options.path || '/webhook';
+      this.webhookSecret = options.webhookSecret;
+      this.githubToken = options.githubToken;
+      this.ngrokOptions = options.ngrokOptions || {};
+      
+      this.app = express();
+      this.eventHandlers = {};
+      this.server = null;
+      this.ngrokUrl = null;
+      this.ngrokManager = new NgrokManager(this.ngrokOptions);
+      
+      // Validate required options
+      if (!this.webhookSecret) {
+        logger.warn('No webhook secret provided. Payload verification will be disabled.');
+      }
+      
+      if (!this.githubToken) {
+        logger.warn('No GitHub token provided. GitHub API operations will be disabled.');
+      }
+      
+      // Set up Express middleware
+      this.app.use(bodyParser.json({
+        verify: this._verifyPayload.bind(this)
+      }));
+      
+      // Create webhook endpoint
+      this.app.post(this.path, this._handleWebhook.bind(this));
+      
+      // Add a health check endpoint
+      this.app.get('/health', (req, res) => {
+        res.status(200).json({ status: 'ok' });
+      });
+      
+      logger.info('WebhookServer initialized');
+    } catch (error) {
+      const enhancedError = errorHandler.internalError(
+        `Failed to initialize WebhookServer: ${error.message}`,
+        { originalError: error.message }
+      );
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
-    
-    if (!this.githubToken) {
-      logger.warn('No GitHub token provided. GitHub API operations will be disabled.');
-    }
-    
-    // Set up Express middleware
-    this.app.use(bodyParser.json({
-      verify: this._verifyPayload.bind(this)
-    }));
-    
-    // Create webhook endpoint
-    this.app.post(this.path, this._handleWebhook.bind(this));
-    
-    // Add a health check endpoint
-    this.app.get('/health', (req, res) => {
-      res.status(200).json({ status: 'ok' });
-    });
   }
   
   /**
@@ -99,6 +112,7 @@ class WebhookServer {
    */
   async _handleWebhook(req, res) {
     try {
+      // Require signature verification if webhook secret is provided
       if (this.webhookSecret && !req.webhookVerified) {
         logger.warn('Received unverified webhook payload');
         return res.status(403).json(
@@ -112,15 +126,28 @@ class WebhookServer {
       const payload = req.body;
       const deliveryId = req.headers['x-github-delivery'];
       
-      logger.info(`Received GitHub webhook: ${event} (${deliveryId})`);
-      
-      if (!event || !payload) {
+      // Validate required headers
+      if (!event) {
         return res.status(400).json(
           errorHandler.handleError(
-            errorHandler.validationError('Missing event or payload')
+            errorHandler.validationError('Missing X-GitHub-Event header')
           ).error
         );
       }
+      
+      if (!deliveryId) {
+        logger.warn('Missing X-GitHub-Delivery header');
+      }
+      
+      if (!payload) {
+        return res.status(400).json(
+          errorHandler.handleError(
+            errorHandler.validationError('Missing payload')
+          ).error
+        );
+      }
+      
+      logger.info(`Received GitHub webhook: ${event} (${deliveryId || 'unknown'})`);
       
       // Acknowledge receipt immediately
       res.status(202).json({ status: 'processing' });
@@ -157,8 +184,12 @@ class WebhookServer {
       await handler(payload);
       logger.info(`Successfully processed ${event} event`);
     } catch (error) {
+      const enhancedError = errorHandler.internalError(
+        `Error in ${event} event handler: ${error.message}`,
+        { originalError: error.message }
+      );
       logger.error(`Error in ${event} event handler:`, { error: error.stack });
-      throw error;
+      throw enhancedError;
     }
   }
   
@@ -178,8 +209,12 @@ class WebhookServer {
       this.eventHandlers[event] = handler;
       logger.info(`Registered handler for ${event} event`);
     } catch (error) {
+      const enhancedError = errorHandler.validationError(
+        `Failed to register event handler for ${event}: ${error.message}`,
+        { originalError: error.message }
+      );
       logger.error(`Failed to register event handler for ${event}:`, { error: error.stack });
-      throw error;
+      throw enhancedError;
     }
   }
   
@@ -207,13 +242,15 @@ class WebhookServer {
             }
           }
           
-          resolve({
+          const serverInfo = {
             server: this.server,
             port: this.port,
             url,
             useNgrok,
             ngrokUrl: this.ngrokUrl
-          });
+          };
+          
+          resolve(serverInfo);
         });
         
         this.server.on('error', (error) => {
@@ -237,6 +274,7 @@ class WebhookServer {
   
   /**
    * Stop the webhook server and ngrok tunnel
+   * @returns {Promise<void>}
    */
   async stop() {
     return new Promise((resolve) => {
@@ -270,6 +308,7 @@ class WebhookServer {
    * @param {string} options.owner - Repository owner
    * @param {string} options.repo - Repository name
    * @param {string[]} [options.events=['push']] - GitHub events to subscribe to
+   * @param {string} [options.url] - Custom webhook URL (overrides ngrok URL)
    * @returns {Promise<Object>} Webhook creation response
    */
   async setupWebhook(options) {
@@ -280,6 +319,10 @@ class WebhookServer {
       
       if (options.events) {
         validation.isArray(options.events, 'options.events');
+      }
+      
+      if (options.url) {
+        validation.isUrl(options.url, 'options.url');
       }
       
       if (!this.githubToken) {
@@ -338,6 +381,16 @@ class WebhookServer {
         throw error;
       }
       
+      if (error.response) {
+        if (error.response.status === 404) {
+          throw errorHandler.notFoundError(`Repository ${options.owner}/${options.repo} not found or no access`);
+        } else if (error.response.status === 422) {
+          throw errorHandler.validationError(`Invalid webhook configuration: ${error.response.data.message || error.message}`);
+        } else if (error.response.status === 401) {
+          throw errorHandler.authenticationError(`GitHub token is invalid or lacks permissions`);
+        }
+      }
+      
       const enhancedError = errorHandler.externalServiceError(
         `Failed to set up webhook: ${error.message}`,
         { originalError: error.message }
@@ -351,6 +404,9 @@ class WebhookServer {
   /**
    * Get existing webhooks for a repository
    * @private
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Promise<Array>} List of webhooks
    */
   async _getRepositoryWebhooks(owner, repo) {
     try {
@@ -373,6 +429,10 @@ class WebhookServer {
       if (error.response && error.response.status === 404) {
         logger.warn(`Repository ${owner}/${repo} not found or no access`);
         return [];
+      }
+      
+      if (error.response && error.response.status === 401) {
+        throw errorHandler.authenticationError(`GitHub token is invalid or lacks permissions`);
       }
       
       const enhancedError = errorHandler.externalServiceError(

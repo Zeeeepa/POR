@@ -1,5 +1,5 @@
 /**
- * WebhookManager.js
+ * GitHubWebhookManager.js
  * Manages GitHub webhooks for repositories.
  * Ensures all repositories have webhooks configured and keeps them updated.
  */
@@ -10,24 +10,36 @@ const config = require('./config');
 const validation = require('./validation');
 const errorHandler = require('./errorHandler');
 
-class WebhookManager {
+/**
+ * GitHubWebhookManager class for managing GitHub webhooks
+ */
+class GitHubWebhookManager {
   /**
-   * Initialize the webhook manager
+   * Initialize the GitHub webhook manager
    * @param {string} [githubToken] - GitHub personal access token
    * @param {string} [webhookUrl] - URL for the webhook
    */
   constructor(githubToken, webhookUrl) {
-    this.githubToken = githubToken || config.github.token;
-    this.webhookUrl = webhookUrl;
-    
-    if (!this.githubToken) {
-      logger.warn('No GitHub token provided. Limited functionality available.');
+    try {
+      this.githubToken = githubToken || config.github.token;
+      this.webhookUrl = webhookUrl;
+      
+      if (!this.githubToken) {
+        logger.warn('No GitHub token provided. Limited functionality available.');
+      }
+      
+      this.octokit = new Octokit({ 
+        auth: this.githubToken,
+        baseUrl: config.github.apiUrl
+      });
+    } catch (error) {
+      const enhancedError = errorHandler.internalError(
+        `Failed to initialize GitHubWebhookManager: ${error.message}`,
+        { originalError: error.message }
+      );
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
-    
-    this.octokit = new Octokit({ 
-      auth: this.githubToken,
-      baseUrl: config.github.apiUrl
-    });
   }
 
   /**
@@ -70,7 +82,7 @@ class WebhookManager {
    * List all webhooks for a repository
    * @param {string} repoFullName - Repository name in format "owner/repo"
    * @returns {Promise<Array>} List of webhook objects
-   * @throws {Error} If repository name is invalid
+   * @throws {Error} If repository name is invalid or API call fails
    */
   async listWebhooks(repoFullName) {
     try {
@@ -93,11 +105,16 @@ class WebhookManager {
       
       if (error.status === 404) {
         logger.warn(`Repository not found or no access to webhooks for ${repoFullName}`);
-        return [];
+        throw errorHandler.notFoundError(`Repository not found or no access to webhooks for ${repoFullName}`);
       }
       
-      logger.error(`Error listing webhooks for ${repoFullName}`, { error: error.stack });
-      return [];
+      const enhancedError = errorHandler.externalServiceError(
+        `Error listing webhooks for ${repoFullName}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -105,6 +122,7 @@ class WebhookManager {
    * Find an existing PR review webhook in the repository
    * @param {string} repoFullName - Repository name in format "owner/repo"
    * @returns {Promise<Object|null>} Webhook object if found, null otherwise
+   * @throws {Error} If repository name is invalid or API call fails
    */
   async findPRReviewWebhook(repoFullName) {
     try {
@@ -120,12 +138,18 @@ class WebhookManager {
       
       return null;
     } catch (error) {
-      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+      if (error.name === errorHandler.ErrorTypes.VALIDATION ||
+          error.name === errorHandler.ErrorTypes.NOT_FOUND) {
         throw error;
       }
       
-      logger.error(`Error finding PR review webhook for ${repoFullName}`, { error: error.stack });
-      return null;
+      const enhancedError = errorHandler.externalServiceError(
+        `Error finding PR review webhook for ${repoFullName}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -135,8 +159,8 @@ class WebhookManager {
    * @param {Object} [options] - Additional webhook options
    * @param {Array<string>} [options.events] - Events to subscribe to
    * @param {string} [options.secret] - Webhook secret
-   * @returns {Promise<Object|null>} Created webhook object if successful, null otherwise
-   * @throws {Error} If repository name is invalid
+   * @returns {Promise<Object>} Created webhook object
+   * @throws {Error} If repository name is invalid or webhook creation fails
    */
   async createWebhook(repoFullName, options = {}) {
     try {
@@ -176,16 +200,27 @@ class WebhookManager {
         throw error;
       }
       
-      const errorMessage = `Error creating webhook for ${repoFullName}: ${error.message}`;
-      logger.error(errorMessage);
-      
       if (error.status === 404) {
-        logger.warn(`Repository ${repoFullName}: Permission denied. Make sure your token has 'admin:repo_hook' scope.`);
+        const notFoundError = errorHandler.notFoundError(
+          `Repository ${repoFullName} not found or no access`
+        );
+        logger.error(notFoundError.message);
+        throw notFoundError;
       } else if (error.status === 422) {
-        logger.warn(`Repository ${repoFullName}: Invalid webhook URL or configuration. Make sure your webhook URL is publicly accessible.`);
+        const validationError = errorHandler.validationError(
+          `Invalid webhook configuration for ${repoFullName}: ${error.message}`
+        );
+        logger.error(validationError.message);
+        throw validationError;
       }
       
-      return null;
+      const enhancedError = errorHandler.externalServiceError(
+        `Error creating webhook for ${repoFullName}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -194,8 +229,8 @@ class WebhookManager {
    * @param {string} repoFullName - Repository name in format "owner/repo"
    * @param {number} hookId - Webhook ID
    * @param {string} newUrl - New webhook URL
-   * @returns {Promise<boolean>} Success status
-   * @throws {Error} If parameters are invalid
+   * @returns {Promise<Object>} Updated webhook object
+   * @throws {Error} If parameters are invalid or update fails
    */
   async updateWebhookUrl(repoFullName, hookId, newUrl) {
     try {
@@ -223,7 +258,7 @@ class WebhookManager {
       };
       
       // Update the webhook
-      await this.octokit.repos.updateWebhook({
+      const { data: updatedHook } = await this.octokit.repos.updateWebhook({
         owner,
         repo,
         hook_id: hookId,
@@ -233,14 +268,19 @@ class WebhookManager {
       });
       
       logger.info(`Webhook URL updated successfully for ${repoFullName}`);
-      return true;
+      return updatedHook;
     } catch (error) {
       if (error.name === errorHandler.ErrorTypes.VALIDATION) {
         throw error;
       }
       
-      logger.error(`Error updating webhook URL for ${repoFullName}`, { error: error.stack });
-      return false;
+      const enhancedError = errorHandler.externalServiceError(
+        `Error updating webhook URL for ${repoFullName}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -248,7 +288,7 @@ class WebhookManager {
    * Ensure a webhook exists for the repository
    * @param {string} repoFullName - Repository name in format "owner/repo"
    * @param {Object} [options] - Additional webhook options
-   * @returns {Promise<{success: boolean, message: string}>} Result with success flag and message
+   * @returns {Promise<{success: boolean, message: string, webhook: Object|null}>} Result with success flag, message, and webhook object
    */
   async ensureWebhookExists(repoFullName, options = {}) {
     try {
@@ -264,57 +304,48 @@ class WebhookManager {
       if (existingHook) {
         // Check if URL needs updating
         if (existingHook.config.url !== this.webhookUrl) {
-          const success = await this.updateWebhookUrl(
+          const updatedHook = await this.updateWebhookUrl(
             repoFullName, 
             existingHook.id, 
             this.webhookUrl
           );
           
-          if (success) {
-            return { 
-              success: true, 
-              message: `Updated webhook URL for ${repoFullName}` 
-            };
-          } else {
-            return { 
-              success: false, 
-              message: `Failed to update webhook URL for ${repoFullName}` 
-            };
-          }
+          return { 
+            success: true, 
+            message: `Updated webhook URL for ${repoFullName}`,
+            webhook: updatedHook
+          };
         } else {
           return { 
             success: true, 
-            message: `Webhook already exists with correct URL for ${repoFullName}` 
+            message: `Webhook already exists with correct URL for ${repoFullName}`,
+            webhook: existingHook
           };
         }
       } else {
         // Create new webhook
         const newHook = await this.createWebhook(repoFullName, options);
         
-        if (newHook) {
-          return { 
-            success: true, 
-            message: `Created new webhook for ${repoFullName}` 
-          };
-        } else {
-          return { 
-            success: false, 
-            message: `Failed to create webhook for ${repoFullName}` 
-          };
-        }
+        return { 
+          success: true, 
+          message: `Created new webhook for ${repoFullName}`,
+          webhook: newHook
+        };
       }
     } catch (error) {
       if (error.name === errorHandler.ErrorTypes.VALIDATION) {
         return { 
           success: false, 
-          message: error.message 
+          message: error.message,
+          webhook: null
         };
       }
       
       logger.error(`Error ensuring webhook for ${repoFullName}`, { error: error.stack });
       return { 
         success: false, 
-        message: `Error: ${error.message}` 
+        message: `Error: ${error.message}`,
+        webhook: null
       };
     }
   }
@@ -338,9 +369,9 @@ class WebhookManager {
       
       for (const repo of repos) {
         const repoFullName = repo.full_name;
-        const { success, message } = await this.ensureWebhookExists(repoFullName, options);
+        const { success, message, webhook } = await this.ensureWebhookExists(repoFullName, options);
         
-        results[repoFullName] = message;
+        results[repoFullName] = { success, message, webhookId: webhook?.id };
         logger.info(`Repository ${repoFullName}: ${message}`);
       }
       
@@ -350,8 +381,13 @@ class WebhookManager {
         throw error;
       }
       
-      logger.error('Error setting up webhooks for all repositories', { error: error.stack });
-      return { error: error.message };
+      const enhancedError = errorHandler.externalServiceError(
+        'Error setting up webhooks for all repositories',
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
     }
   }
 
@@ -359,7 +395,7 @@ class WebhookManager {
    * Handle repository creation event
    * @param {string} repoName - Repository name in format "owner/repo"
    * @param {Object} [options] - Additional webhook options
-   * @returns {Promise<{success: boolean, message: string}>} Result with success flag and message
+   * @returns {Promise<{success: boolean, message: string, webhook: Object|null}>} Result with success flag, message, and webhook object
    */
   async handleRepositoryCreated(repoName, options = {}) {
     logger.info(`Handling repository creation for ${repoName}`);
@@ -376,14 +412,16 @@ class WebhookManager {
       if (error.name === errorHandler.ErrorTypes.VALIDATION) {
         return { 
           success: false, 
-          message: error.message 
+          message: error.message,
+          webhook: null
         };
       }
       
       logger.error(`Error handling repository creation for ${repoName}`, { error: error.stack });
       return { 
         success: false, 
-        message: `Error: ${error.message}` 
+        message: `Error: ${error.message}`,
+        webhook: null
       };
     }
   }
@@ -397,6 +435,10 @@ class WebhookManager {
    */
   verifyWebhookSignature(signature, body, secret) {
     try {
+      validation.isString(signature, 'signature');
+      validation.isString(body, 'body');
+      validation.isString(secret, 'secret');
+      
       return validation.isValidWebhookSignature(signature, body, secret);
     } catch (error) {
       logger.error('Error verifying webhook signature', { error: error.stack });
@@ -421,4 +463,4 @@ class WebhookManager {
   }
 }
 
-module.exports = WebhookManager;
+module.exports = GitHubWebhookManager;

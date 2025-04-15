@@ -1,85 +1,69 @@
 /**
- * Test script for the webhook module
- * This script demonstrates how to use the webhook module
+ * Simple test script for webhook functionality
+ * Run this to test the webhook server with a simple ping event
  */
 
-require('dotenv').config();
-const { createWebhookManager } = require('./index');
+const dotenv = require('dotenv');
+dotenv.config();
+
+const { createWebhookServerManager } = require('./index');
 const logger = require('../utils/logger');
 
 // Load environment variables
 const PORT = process.env.PORT || 3000;
-const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const NGROK_AUTH_TOKEN = process.env.NGROK_AUTH_TOKEN;
+const USE_NGROK = process.env.USE_NGROK === 'true';
 
 // Create webhook manager
-const webhookManager = createWebhookManager({
+const webhookManager = createWebhookServerManager({
   port: PORT,
-  webhookSecret: GITHUB_WEBHOOK_SECRET,
+  webhookSecret: WEBHOOK_SECRET,
   githubToken: GITHUB_TOKEN,
+  useNgrok: USE_NGROK,
   ngrokOptions: {
-    authtoken: NGROK_AUTH_TOKEN
-  },
-  useNgrok: true
+    authtoken: process.env.NGROK_AUTH_TOKEN,
+    region: process.env.NGROK_REGION || 'us'
+  }
 });
 
-// Register event handlers
+// Register a simple ping handler
 webhookManager.registerEventHandler('ping', async (payload) => {
-  logger.info('Received ping event');
-  logger.info(`Repository: ${payload.repository?.full_name || 'N/A'}`);
-  logger.info(`Sender: ${payload.sender?.login || 'N/A'}`);
+  logger.info('Received ping event!');
+  logger.info(`Repository: ${payload.repository?.full_name || 'Unknown'}`);
+  logger.info(`Sender: ${payload.sender?.login || 'Unknown'}`);
+  logger.info(`Zen message: ${payload.zen || 'No zen message'}`);
 });
 
-// Start the webhook manager
-async function main() {
+// Start the webhook server
+async function start() {
   try {
     const serverInfo = await webhookManager.start();
+    logger.info(`Webhook server started on ${serverInfo.url}`);
     
-    logger.info('Webhook module test server started');
-    logger.info(`Webhook URL: ${serverInfo.url}`);
-    logger.info(`Dashboard URL: ${serverInfo.dashboardUrl}`);
+    if (serverInfo.ngrokUrl) {
+      logger.info(`ngrok tunnel available at ${serverInfo.ngrokUrl}`);
+      logger.info(`To test, add a webhook to your GitHub repository with URL: ${serverInfo.ngrokUrl}${webhookManager.webhookPath}`);
+    } else {
+      logger.info(`Webhook URL: ${serverInfo.url}`);
+      logger.info('Note: You need to make this URL publicly accessible for GitHub to reach it.');
+    }
     
-    logger.info('');
-    logger.info('To test the webhook:');
-    logger.info('1. Use the webhook URL in a GitHub repository webhook');
-    logger.info('2. Or use curl to send a test payload:');
-    logger.info(`   curl -X POST ${serverInfo.url} \\`);
-    logger.info('     -H "Content-Type: application/json" \\');
-    logger.info('     -H "X-GitHub-Event: ping" \\');
-    logger.info('     -d \'{"repository":{"full_name":"test/repo"},"sender":{"login":"testuser"}}\'');
-    logger.info('');
     logger.info('Press Ctrl+C to stop the server');
     
-    return serverInfo;
+    // Handle graceful shutdown
+    process.on('SIGINT', async () => {
+      logger.info('Shutting down...');
+      await webhookManager.stop();
+      process.exit(0);
+    });
   } catch (error) {
-    logger.error(`Failed to start webhook manager: ${error.message}`, { error: error.stack });
-    throw error;
+    logger.error('Failed to start webhook server', { error: error.stack });
+    process.exit(1);
   }
 }
 
-// Handle graceful shutdown
-function shutdown() {
-  logger.info('Shutting down webhook manager...');
-  webhookManager.stop()
-    .then(() => {
-      logger.info('Manager stopped successfully');
-      process.exit(0);
-    })
-    .catch(error => {
-      logger.error(`Error during shutdown: ${error.message}`, { error: error.stack });
-      process.exit(1);
-    });
-}
-
-// Register shutdown handlers
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-
-// Run if this file is executed directly
+// Start if this file is run directly
 if (require.main === module) {
-  main().catch(error => {
-    logger.error(`Server failed to start: ${error.message}`, { error: error.stack });
-    process.exit(1);
-  });
+  start();
 }

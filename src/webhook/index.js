@@ -1,44 +1,52 @@
 /**
- * Webhook Module Index
- * Exports all webhook module components
+ * Webhook module index
+ * Exports all webhook functionality
  */
 
-const WebhookManager = require('./WebhookManager');
 const WebhookServer = require('./webhookServer');
+const WebhookServerManager = require('./WebhookServerManager');
 const setupDashboard = require('./dashboard');
+const GitHubWebhookManager = require('../utils/GitHubWebhookManager');
 
 /**
- * Create a new webhook manager
- * @param {Object} options - Configuration options
- * @returns {WebhookManager} New webhook manager instance
+ * Create a new webhook server manager
+ * @param {Object} [options={}] - Configuration options
+ * @returns {WebhookServerManager} New webhook server manager instance
  */
-function createWebhookManager(options = {}) {
-  return new WebhookManager(options);
+function createWebhookServerManager(options = {}) {
+  return new WebhookServerManager(options);
 }
 
 /**
  * Create a new webhook server
- * @param {Object} options - Configuration options
+ * @param {Object} [options={}] - Configuration options
  * @returns {WebhookServer} New webhook server instance
  */
 function createWebhookServer(options = {}) {
   return new WebhookServer(options);
 }
 
-// Export all components
+/**
+ * Create a new GitHub webhook manager
+ * @param {string} [githubToken] - GitHub personal access token
+ * @param {string} [webhookUrl] - URL for the webhook
+ * @returns {GitHubWebhookManager} New GitHub webhook manager instance
+ */
+function createGitHubWebhookManager(githubToken, webhookUrl) {
+  return new GitHubWebhookManager(githubToken, webhookUrl);
+}
+
 module.exports = {
-  // Main exports
-  WebhookManager,
+  // Classes
   WebhookServer,
-  setupDashboard,
+  WebhookServerManager,
+  GitHubWebhookManager,
   
   // Factory functions
-  createWebhookManager,
   createWebhookServer,
+  createWebhookServerManager,
+  createGitHubWebhookManager,
   
-  // Example implementations
-  examples: {
-    consolidated: require('./example-consolidated'),
-    traditional: require('./example')
-  }
+  // Utilities
+  setupDashboard
 };

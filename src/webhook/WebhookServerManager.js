@@ -1,6 +1,6 @@
 /**
- * WebhookManager.js
- * Central manager for webhook functionality
+ * WebhookServerManager.js
+ * Central manager for webhook server functionality
  */
 
 const WebhookServer = require('./webhookServer');
@@ -12,9 +12,9 @@ const errorHandler = require('../utils/errorHandler');
 const express = require('express');
 
 /**
- * WebhookManager class for centralized webhook management
+ * WebhookServerManager class for centralized webhook server management
  */
-class WebhookManager {
+class WebhookServerManager {
   /**
    * @param {Object} options - Configuration options
    * @param {number} [options.port=3000] - Port for webhook server
@@ -59,10 +59,14 @@ class WebhookManager {
       this.isRunning = false;
       this.serverInfo = null;
       
-      logger.info('WebhookManager initialized');
+      logger.info('WebhookServerManager initialized');
     } catch (error) {
-      logger.error('Failed to initialize WebhookManager', { error: error.stack });
-      throw error;
+      const enhancedError = errorHandler.internalError(
+        `Failed to initialize WebhookServerManager: ${error.message}`,
+        { originalError: error.message }
+      );
+      logger.error('Failed to initialize WebhookServerManager', { error: error.stack });
+      throw enhancedError;
     }
   }
   
@@ -70,15 +74,22 @@ class WebhookManager {
    * Register a handler for a specific GitHub event
    * @param {string} event - GitHub event name
    * @param {Function} handler - Event handler function
-   * @returns {WebhookManager} this instance for chaining
+   * @returns {WebhookServerManager} this instance for chaining
    */
   registerEventHandler(event, handler) {
     try {
+      validation.isString(event, 'event');
+      validation.isFunction(handler, 'handler');
+      
       this.webhookServer.registerEventHandler(event, handler);
       return this;
     } catch (error) {
+      const enhancedError = errorHandler.validationError(
+        `Failed to register event handler for ${event}: ${error.message}`,
+        { originalError: error.message }
+      );
       logger.error(`Failed to register event handler for ${event}`, { error: error.stack });
-      throw error;
+      throw enhancedError;
     }
   }
   
@@ -90,7 +101,7 @@ class WebhookManager {
   async start(useNgrok = undefined) {
     try {
       if (this.isRunning) {
-        logger.warn('WebhookManager is already running');
+        logger.warn('WebhookServerManager is already running');
         return this.serverInfo;
       }
       
@@ -114,22 +125,41 @@ class WebhookManager {
       this.serverInfo.dashboardUrl = `http://localhost:${this.dashboardPort}${this.dashboardPath}`;
       this.isRunning = true;
       
-      logger.info('WebhookManager started successfully');
+      logger.info('WebhookServerManager started successfully');
       return this.serverInfo;
     } catch (error) {
-      logger.error('Failed to start WebhookManager', { error: error.stack });
+      const enhancedError = errorHandler.internalError(
+        `Failed to start WebhookServerManager: ${error.message}`,
+        { originalError: error.message }
+      );
+      logger.error('Failed to start WebhookServerManager', { error: error.stack });
       
       // Clean up if partial start
-      if (this.webhookServer) {
-        await this.webhookServer.stop().catch(e => logger.error('Error stopping webhook server during cleanup', { error: e.stack }));
-      }
+      await this._cleanupOnFailure();
       
-      if (this.dashboardServer) {
-        await new Promise(resolve => this.dashboardServer.close(resolve))
-          .catch(e => logger.error('Error stopping dashboard server during cleanup', { error: e.stack }));
+      throw enhancedError;
+    }
+  }
+  
+  /**
+   * Clean up resources on startup failure
+   * @private
+   */
+  async _cleanupOnFailure() {
+    if (this.webhookServer) {
+      try {
+        await this.webhookServer.stop();
+      } catch (e) {
+        logger.error('Error stopping webhook server during cleanup', { error: e.stack });
       }
-      
-      throw error;
+    }
+    
+    if (this.dashboardServer) {
+      try {
+        await new Promise(resolve => this.dashboardServer.close(resolve));
+      } catch (e) {
+        logger.error('Error stopping dashboard server during cleanup', { error: e.stack });
+      }
     }
   }
   
@@ -140,11 +170,11 @@ class WebhookManager {
   async stop() {
     try {
       if (!this.isRunning) {
-        logger.warn('WebhookManager is not running');
+        logger.warn('WebhookServerManager is not running');
         return;
       }
       
-      logger.info('Stopping WebhookManager');
+      logger.info('Stopping WebhookServerManager');
       
       // Stop webhook server
       await this.webhookServer.stop();
@@ -156,10 +186,14 @@ class WebhookManager {
       }
       
       this.isRunning = false;
-      logger.info('WebhookManager stopped successfully');
+      logger.info('WebhookServerManager stopped successfully');
     } catch (error) {
-      logger.error('Error stopping WebhookManager', { error: error.stack });
-      throw error;
+      const enhancedError = errorHandler.internalError(
+        `Error stopping WebhookServerManager: ${error.message}`,
+        { originalError: error.message }
+      );
+      logger.error('Error stopping WebhookServerManager', { error: error.stack });
+      throw enhancedError;
     }
   }
   
@@ -176,13 +210,22 @@ class WebhookManager {
       validation.isObject(options, 'options', { requiredProps: ['owner', 'repo'] });
       
       if (!this.isRunning) {
-        throw errorHandler.validationError('WebhookManager must be running before setting up webhooks');
+        throw errorHandler.validationError('WebhookServerManager must be running before setting up webhooks');
       }
       
       return await this.webhookServer.setupWebhook(options);
     } catch (error) {
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw error;
+      }
+      
+      const enhancedError = errorHandler.externalServiceError(
+        `Failed to set up webhook for ${options?.owner}/${options?.repo}: ${error.message}`,
+        { originalError: error.message }
+      );
+      
       logger.error(`Failed to set up webhook for ${options?.owner}/${options?.repo}`, { error: error.stack });
-      throw error;
+      throw enhancedError;
     }
   }
   
@@ -219,4 +262,4 @@ class WebhookManager {
   }
 }
 
-module.exports = WebhookManager;
+module.exports = WebhookServerManager;

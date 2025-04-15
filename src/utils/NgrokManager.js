@@ -9,6 +9,9 @@ const config = require('./config');
 const validation = require('./validation');
 const errorHandler = require('./errorHandler');
 
+/**
+ * NgrokManager class for managing ngrok tunnels
+ */
 class NgrokManager {
   /**
    * Initialize the NgrokManager
@@ -17,10 +20,23 @@ class NgrokManager {
    * @param {string} [options.region] - Ngrok region (us, eu, au, ap, sa, jp, in)
    */
   constructor(options = {}) {
-    this.authtoken = options.authtoken || config.ngrok.authToken;
-    this.region = options.region || config.ngrok.region || 'us';
-    this.url = null;
-    this.isRunning = false;
+    try {
+      validation.isObject(options, 'options');
+      
+      this.authtoken = options.authtoken || config.ngrok.authToken;
+      this.region = options.region || config.ngrok.region || 'us';
+      this.url = null;
+      this.isRunning = false;
+      
+      logger.info('NgrokManager initialized');
+    } catch (error) {
+      const enhancedError = errorHandler.internalError(
+        `Failed to initialize NgrokManager: ${error.message}`,
+        { originalError: error.message }
+      );
+      logger.error(enhancedError.message, { error: error.stack });
+      throw enhancedError;
+    }
   }
 
   /**
@@ -33,6 +49,7 @@ class NgrokManager {
   async startTunnel(port, options = {}) {
     try {
       validation.isNumber(port, 'port', { min: 1, max: 65535 });
+      validation.isObject(options, 'options');
       
       if (this.isRunning) {
         logger.warn('Ngrok tunnel is already running, stopping existing tunnel first');
@@ -81,8 +98,19 @@ class NgrokManager {
     try {
       if (this.isRunning) {
         logger.info('Stopping ngrok tunnel');
-        await ngrok.disconnect();
-        await ngrok.kill();
+        
+        try {
+          await ngrok.disconnect();
+        } catch (disconnectError) {
+          logger.warn(`Error disconnecting ngrok: ${disconnectError.message}. Proceeding with kill.`);
+        }
+        
+        try {
+          await ngrok.kill();
+        } catch (killError) {
+          logger.warn(`Error killing ngrok process: ${killError.message}`);
+          throw killError; // Re-throw to be caught by outer try/catch
+        }
         
         this.url = null;
         this.isRunning = false;
@@ -103,10 +131,10 @@ class NgrokManager {
 
   /**
    * Get the current public URL
-   * @returns {Promise<string>} - The public ngrok URL
+   * @returns {string} - The public ngrok URL
    * @throws {Error} - If no tunnel is running
    */
-  async getPublicUrl() {
+  getPublicUrl() {
     if (!this.isRunning || !this.url) {
       throw errorHandler.notFoundError('No ngrok tunnel is running');
     }

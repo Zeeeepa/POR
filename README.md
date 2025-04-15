@@ -55,10 +55,10 @@ The webhook module provides a robust system for handling GitHub webhook events. 
 Basic usage:
 
 ```javascript
-const { createWebhookManager } = require('./src/webhook');
+const { createWebhookServerManager } = require('./src/webhook');
 
-// Create webhook manager
-const webhookManager = createWebhookManager({
+// Create webhook server manager
+const webhookManager = createWebhookServerManager({
   port: 3000,
   webhookSecret: 'your_webhook_secret',
   githubToken: 'your_github_token',
@@ -75,6 +75,26 @@ webhookManager.start()
   .then(serverInfo => {
     console.log(`Webhook URL: ${serverInfo.url}`);
     console.log(`Dashboard URL: ${serverInfo.dashboardUrl}`);
+  });
+```
+
+### GitHub Webhook Management
+
+For managing GitHub webhooks across multiple repositories:
+
+```javascript
+const { createGitHubWebhookManager } = require('./src/webhook');
+
+// Create GitHub webhook manager
+const githubWebhookManager = createGitHubWebhookManager(
+  'your_github_token',
+  'https://your-webhook-url.com/webhook'
+);
+
+// Set up webhooks for all accessible repositories
+githubWebhookManager.setupWebhooksForAllRepos()
+  .then(results => {
+    console.log('Webhook setup results:', results);
   });
 ```
 

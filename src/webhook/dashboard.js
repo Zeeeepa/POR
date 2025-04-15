@@ -10,10 +10,21 @@ const validation = require('../utils/validation');
 const errorHandler = require('../utils/errorHandler');
 const logger = require('../utils/logger');
 
-// For storing webhook events in memory
-const eventHistory = {
-  events: [],
-  maxEvents: 100,
+/**
+ * Event history manager for storing and retrieving webhook events
+ */
+class EventHistory {
+  constructor(maxEvents = 100) {
+    this.events = [];
+    this.maxEvents = maxEvents;
+  }
+  
+  /**
+   * Add a new event to the history
+   * @param {Object} event - Event object to add
+   * @returns {Object} The added event
+   * @throws {Error} If event is invalid
+   */
   addEvent(event) {
     try {
       validation.isObject(event, 'event', { requiredProps: ['type'] });
@@ -25,10 +36,20 @@ const eventHistory = {
       }
       return event;
     } catch (error) {
+      const enhancedError = errorHandler.validationError(
+        `Failed to add event to history: ${error.message}`,
+        { originalError: error.message }
+      );
       logger.error('Failed to add event to history', { error: error.stack });
-      throw error;
+      throw enhancedError;
     }
-  },
+  }
+  
+  /**
+   * Get events from the history
+   * @param {number} limit - Maximum number of events to return
+   * @returns {Array} List of events
+   */
   getEvents(limit = 50) {
     try {
       validation.isNumber(limit, 'limit', { min: 1, max: 1000 });
@@ -37,7 +58,12 @@ const eventHistory = {
       logger.error('Failed to get events', { error: error.stack });
       return [];
     }
-  },
+  }
+  
+  /**
+   * Get statistics about the events
+   * @returns {Object} Event statistics
+   */
   getStats() {
     const stats = {
       total: this.events.length,
@@ -56,7 +82,47 @@ const eventHistory = {
     
     return stats;
   }
-};
+  
+  /**
+   * Find an event by ID
+   * @param {string|number} id - Event ID to find
+   * @returns {Object|null} Event object or null if not found
+   */
+  findEventById(id) {
+    return this.events.find(e => String(e.id) === String(id)) || null;
+  }
+}
+
+// Create a singleton instance
+const eventHistory = new EventHistory(100);
+
+/**
+ * Generate a summary of an event based on its type and payload
+ * @param {string} event - Event type
+ * @param {Object} payload - Event payload
+ * @returns {string} Event summary
+ */
+function getSummary(event, payload) {
+  try {
+    switch (event) {
+      case 'push':
+        return `${payload.commits?.length || 0} commits to ${payload.ref}`;
+      case 'pull_request':
+        return `${payload.action} PR #${payload.number || payload.pull_request?.number}: ${payload.pull_request?.title}`;
+      case 'issues':
+        return `${payload.action} issue #${payload.issue?.number}: ${payload.issue?.title}`;
+      case 'issue_comment':
+        return `Comment on #${payload.issue?.number}`;
+      case 'workflow_run':
+        return `Workflow ${payload.workflow_run?.name} ${payload.workflow_run?.status}`;
+      default:
+        return `${event} event received`;
+    }
+  } catch (error) {
+    logger.warn(`Error generating summary for ${event} event`, { error: error.stack });
+    return `${event} event received`;
+  }
+}
 
 /**
  * Set up dashboard routes on an existing Express app
@@ -106,24 +172,6 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
       };
     };
     
-    // Helper to generate summary of events
-    function getSummary(event, payload) {
-      switch (event) {
-        case 'push':
-          return `${payload.commits?.length || 0} commits to ${payload.ref}`;
-        case 'pull_request':
-          return `${payload.action} PR #${payload.number || payload.pull_request?.number}: ${payload.pull_request?.title}`;
-        case 'issues':
-          return `${payload.action} issue #${payload.issue?.number}: ${payload.issue?.title}`;
-        case 'issue_comment':
-          return `Comment on #${payload.issue?.number}`;
-        case 'workflow_run':
-          return `Workflow ${payload.workflow_run?.name} ${payload.workflow_run?.status}`;
-        default:
-          return `${event} event received`;
-      }
-    }
-    
     // Dashboard home page
     app.get(basePath, errorHandler.asyncHandler(async (req, res) => {
       const stats = eventHistory.getStats();
@@ -162,7 +210,7 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
       
       // Apply limit after filtering
       const parsedLimit = parseInt(limit, 10);
-      events = events.slice(0, isNaN(parsedLimit) ? 50 : parsedLimit);
+      events = events.slice(0, isNaN(parsedLimit) ? 50 : Math.min(parsedLimit, 100));
       
       res.render('events', {
         title: 'Webhook Events',
@@ -175,7 +223,7 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     // Event detail page
     app.get(`${basePath}/events/:id`, errorHandler.asyncHandler(async (req, res) => {
       const eventId = req.params.id;
-      const event = eventHistory.events.find(e => e.id == eventId);
+      const event = eventHistory.findEventById(eventId);
       
       if (!event) {
         throw errorHandler.notFoundError(`Event with ID ${eventId} was not found`);
@@ -192,7 +240,7 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
     app.get(`${basePath}/api/events`, errorHandler.asyncHandler(async (req, res) => {
       const { limit = 50 } = req.query;
       const parsedLimit = parseInt(limit, 10);
-      res.json(eventHistory.getEvents(isNaN(parsedLimit) ? 50 : parsedLimit));
+      res.json(eventHistory.getEvents(isNaN(parsedLimit) ? 50 : Math.min(parsedLimit, 100)));
     }));
     
     app.get(`${basePath}/api/stats`, errorHandler.asyncHandler(async (req, res) => {
@@ -220,8 +268,12 @@ function setupDashboard(app, webhookServer, basePath = '/dashboard') {
       basePath
     };
   } catch (error) {
+    const enhancedError = errorHandler.internalError(
+      `Failed to set up dashboard: ${error.message}`,
+      { originalError: error.message }
+    );
     logger.error('Failed to set up dashboard', { error: error.stack });
-    throw error;
+    throw enhancedError;
   }
 }
 
