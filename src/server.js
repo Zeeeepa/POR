@@ -79,13 +79,13 @@ async function checkGitHubToken() {
   }
 }
 
-// Initialize DeplaManager
+// Initialize DeplaEnhanced
 let deplaManager;
 
 // Initialize application
 async function initializeApp() {
   await checkGitHubToken();
-  deplaManager = new framework.DeplaManager();
+  deplaManager = new framework.DeplaEnhanced();
   
   // Start the server
   app.listen(PORT, () => {
@@ -210,12 +210,6 @@ app.post('/settings', async (req, res) => {
   const newConfig = req.body;
   deplaManager.updateConfig(newConfig);
   res.redirect('/settings');
-});
-
-// API routes
-app.get('/api/wsl2-test', async (req, res) => {
-  const result = await deplaManager.testWsl2Connection();
-  res.json(result);
 });
 
 // Initialize the application

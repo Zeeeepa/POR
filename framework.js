@@ -1,10 +1,15 @@
 /**
  * Framework adapter for backward compatibility
- * This file re-exports the unified framework from src/framework/index.js
+ * This file directly exports DeplaEnhanced from src/models/DeplaEnhanced.js
+ * instead of using the unified framework from src/framework/index.js
  */
 
-// Import the unified framework
-const framework = require('./src/framework');
+// Import DeplaEnhanced
+const DeplaEnhanced = require('./src/models/DeplaEnhanced');
 
-// Export the unified framework
-module.exports = framework;
+// Export DeplaEnhanced as the main framework component
+module.exports = {
+  DeplaEnhanced,
+  // Re-export other components for backward compatibility
+  ...require('./src/framework')
+};
