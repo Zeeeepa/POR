@@ -5,7 +5,7 @@ const path = require('path');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const readline = require('readline');
-const { DeplaManager } = require('../framework');
+const framework = require('../framework');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -81,7 +81,7 @@ let deplaManager;
 // Initialize application
 async function initializeApp() {
   await checkGitHubToken();
-  deplaManager = new DeplaManager();
+  deplaManager = new framework.DeplaManager();
   
   // Start the server
   app.listen(PORT, () => {
