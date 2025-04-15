@@ -1,10 +1,10 @@
 /**
- * Example usage of the WebhookManager
+ * Example usage of the WebhookServerManager
  * This demonstrates the consolidated approach to webhook management
  */
 
 require('dotenv').config();
-const WebhookManager = require('./WebhookManager');
+const WebhookServerManager = require('./WebhookManager');
 const logger = require('../utils/logger');
 const errorHandler = require('../utils/errorHandler');
 
@@ -16,8 +16,8 @@ const NGROK_AUTH_TOKEN = process.env.NGROK_AUTH_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER;
 const GITHUB_REPO = process.env.GITHUB_REPO;
 
-// Initialize the webhook manager
-const webhookManager = new WebhookManager({
+// Initialize the webhook server manager
+const webhookManager = new WebhookServerManager({
   port: PORT,
   webhookSecret: GITHUB_WEBHOOK_SECRET,
   githubToken: GITHUB_TOKEN,

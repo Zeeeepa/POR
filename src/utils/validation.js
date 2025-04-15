@@ -4,6 +4,7 @@
  */
 
 const logger = require('./logger');
+const webhookUtils = require('./github/webhookUtils');
 
 /**
  * Validation utility for consistent parameter validation
@@ -218,24 +219,7 @@ const validation = {
    * @returns {boolean} Whether the signature is valid
    */
   isValidWebhookSignature(signature, body, secret) {
-    try {
-      // Validate parameters
-      this.isString(signature, 'signature');
-      this.isString(body, 'body');
-      this.isString(secret, 'secret');
-      
-      const crypto = require('crypto');
-      const hmac = crypto.createHmac('sha256', secret);
-      const digest = 'sha256=' + hmac.update(body).digest('hex');
-      
-      return crypto.timingSafeEqual(
-        Buffer.from(digest),
-        Buffer.from(signature)
-      );
-    } catch (error) {
-      logger.error(`Webhook signature validation failed: ${error.message}`);
-      return false;
-    }
+    return webhookUtils.verifySignature(signature, body, secret);
   }
 };
 

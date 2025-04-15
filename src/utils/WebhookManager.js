@@ -1,5 +1,5 @@
 /**
- * WebhookManager.js
+ * GitHubWebhookManager.js
  * Manages GitHub webhooks for repositories.
  * Ensures all repositories have webhooks configured and keeps them updated.
  */
@@ -10,7 +10,10 @@ const config = require('./config');
 const validation = require('./validation');
 const errorHandler = require('./errorHandler');
 
-class WebhookManager {
+/**
+ * GitHubWebhookManager class for managing GitHub webhooks
+ */
+class GitHubWebhookManager {
   /**
    * Initialize the webhook manager
    * @param {string} [githubToken] - GitHub personal access token
@@ -37,9 +40,7 @@ class WebhookManager {
    */
   async getAllRepositories() {
     try {
-      if (!this.githubToken) {
-        throw errorHandler.authenticationError('GitHub token is required to fetch repositories');
-      }
+      validation.exists(this.githubToken, 'githubToken');
       
       logger.info("Fetching all accessible repositories");
       
@@ -52,8 +53,8 @@ class WebhookManager {
       logger.info(`Found ${repos.length} repositories`);
       return repos;
     } catch (error) {
-      if (error.name === errorHandler.ErrorTypes.AUTHENTICATION) {
-        throw error;
+      if (error.name === errorHandler.ErrorTypes.VALIDATION) {
+        throw errorHandler.authenticationError('GitHub token is required to fetch repositories');
       }
       
       const enhancedError = errorHandler.externalServiceError(
@@ -75,6 +76,7 @@ class WebhookManager {
   async listWebhooks(repoFullName) {
     try {
       validation.isRepoName(repoFullName, 'repoFullName');
+      validation.exists(this.githubToken, 'githubToken');
       
       const [owner, repo] = repoFullName.split('/');
       
@@ -96,7 +98,12 @@ class WebhookManager {
         return [];
       }
       
-      logger.error(`Error listing webhooks for ${repoFullName}`, { error: error.stack });
+      const enhancedError = errorHandler.externalServiceError(
+        `Error listing webhooks for ${repoFullName}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
       return [];
     }
   }
@@ -141,10 +148,8 @@ class WebhookManager {
   async createWebhook(repoFullName, options = {}) {
     try {
       validation.isRepoName(repoFullName, 'repoFullName');
-      
-      if (!this.webhookUrl) {
-        throw errorHandler.validationError('Webhook URL is required to create a webhook');
-      }
+      validation.exists(this.webhookUrl, 'webhookUrl');
+      validation.exists(this.githubToken, 'githubToken');
       
       const [owner, repo] = repoFullName.split('/');
       
@@ -202,6 +207,7 @@ class WebhookManager {
       validation.isRepoName(repoFullName, 'repoFullName');
       validation.isNumber(hookId, 'hookId', { min: 1 });
       validation.isUrl(newUrl, 'newUrl');
+      validation.exists(this.githubToken, 'githubToken');
       
       const [owner, repo] = repoFullName.split('/');
       
@@ -239,7 +245,12 @@ class WebhookManager {
         throw error;
       }
       
-      logger.error(`Error updating webhook URL for ${repoFullName}`, { error: error.stack });
+      const enhancedError = errorHandler.externalServiceError(
+        `Error updating webhook URL for ${repoFullName}`,
+        { originalError: error.message }
+      );
+      
+      logger.error(enhancedError.message, { error: error.stack });
       return false;
     }
   }
@@ -253,10 +264,7 @@ class WebhookManager {
   async ensureWebhookExists(repoFullName, options = {}) {
     try {
       validation.isRepoName(repoFullName, 'repoFullName');
-      
-      if (!this.webhookUrl) {
-        throw errorHandler.validationError('Webhook URL is required to ensure webhook exists');
-      }
+      validation.exists(this.webhookUrl, 'webhookUrl');
       
       // Check if webhook already exists
       const existingHook = await this.findPRReviewWebhook(repoFullName);
@@ -329,9 +337,7 @@ class WebhookManager {
     const results = {};
     
     try {
-      if (!this.webhookUrl) {
-        throw errorHandler.validationError('Webhook URL is required to set up webhooks');
-      }
+      validation.exists(this.webhookUrl, 'webhookUrl');
       
       const repos = await this.getAllRepositories();
       logger.info(`Found ${repos.length} repositories`);
@@ -366,10 +372,7 @@ class WebhookManager {
     
     try {
       validation.isRepoName(repoName, 'repoName');
-      
-      if (!this.webhookUrl) {
-        throw errorHandler.validationError('Webhook URL is required to handle repository creation');
-      }
+      validation.exists(this.webhookUrl, 'webhookUrl');
       
       return await this.ensureWebhookExists(repoName, options);
     } catch (error) {
@@ -421,4 +424,4 @@ class WebhookManager {
   }
 }
 
-module.exports = WebhookManager;
+module.exports = GitHubWebhookManager;
