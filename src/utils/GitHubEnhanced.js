@@ -7,6 +7,9 @@ const { Octokit } = require('@octokit/rest');
 const EventEmitter = require('events');
 const logger = require('./logger');
 const config = require('./config');
+const fs = require('fs-extra');
+const path = require('path');
+const readline = require('readline');
 
 class GitHubEnhanced extends EventEmitter {
   /**
@@ -24,24 +27,94 @@ class GitHubEnhanced extends EventEmitter {
     this.mergeQueue = [];
     this.knownPRs = new Map();
     this.knownBranches = new Map();
+    this.authenticationFailed = false;
     
     // Initialize if token is provided
     if (options.token || config.github.token) {
-      this.authenticate();
+      this.authenticate().catch(err => {
+        this.authenticationFailed = true;
+        logger.warn('GitHub authentication failed during initialization, will retry when needed');
+      });
     }
   }
   
   /**
-   * Authenticate with GitHub API
-   * @returns {Promise<boolean>} Authentication success
-   * @throws {Error} If authentication fails
+   * Prompt user for GitHub token in terminal
+   * @returns {Promise<string>} GitHub token
    */
-  async authenticate() {
+  async promptForGitHubToken() {
+    logger.info('GitHub token not found or invalid. Please provide a valid token.');
+    
+    // Create readline interface for user input
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    
+    // Prompt for GitHub token
+    const token = await new Promise((resolve) => {
+      rl.question('Enter your GitHub token: ', (answer) => {
+        resolve(answer.trim());
+        rl.close();
+      });
+    });
+    
+    if (token) {
+      // Save token to .env file
+      const envPath = path.join(process.cwd(), '.env');
+      let envContent = '';
+      
+      if (fs.existsSync(envPath)) {
+        // Read existing .env file
+        envContent = fs.readFileSync(envPath, 'utf8');
+        
+        // Check if GITHUB_TOKEN already exists in the file
+        if (envContent.includes('GITHUB_TOKEN=')) {
+          // Replace existing token
+          envContent = envContent.replace(/GITHUB_TOKEN=.*(\r?\n|$)/, `GITHUB_TOKEN=${token}$1`);
+        } else {
+          // Add GITHUB_TOKEN to the file
+          envContent += `\nGITHUB_TOKEN=${token}\n`;
+        }
+        fs.writeFileSync(envPath, envContent);
+      } else {
+        // Create new .env file with token
+        envContent = `GITHUB_TOKEN=${token}\n`;
+        fs.writeFileSync(envPath, envContent);
+      }
+      
+      logger.info('GitHub token saved to .env file');
+      
+      // Update environment variable
+      process.env.GITHUB_TOKEN = token;
+      config.github.token = token;
+      
+      return token;
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Authenticate with GitHub API
+   * @param {boolean} [retry=true] - Whether to retry with user prompt if authentication fails
+   * @returns {Promise<boolean>} Authentication success
+   */
+  async authenticate(retry = true) {
     try {
       const token = this.options.token || config.github.token || process.env.GITHUB_TOKEN;
       
       if (!token) {
-        throw new Error('GitHub token not provided');
+        if (retry) {
+          const newToken = await this.promptForGitHubToken();
+          if (newToken) {
+            return this.authenticate(false);
+          }
+        }
+        
+        this.authenticationFailed = true;
+        logger.warn('GitHub authentication skipped: No token provided');
+        return false;
       }
       
       this.octokit = new Octokit({
@@ -54,11 +127,27 @@ class GitHubEnhanced extends EventEmitter {
       logger.info(`Authenticated with GitHub as ${data.login}`);
       
       this.authenticated = true;
+      this.authenticationFailed = false;
       return true;
     } catch (error) {
-      logger.logError('GitHub authentication failed', error);
+      if (error.status === 401 && retry) {
+        logger.warn('GitHub authentication failed: Bad credentials');
+        const newToken = await this.promptForGitHubToken();
+        if (newToken) {
+          return this.authenticate(false);
+        }
+      }
+      
+      this.authenticationFailed = true;
       this.authenticated = false;
-      throw error;
+      
+      if (!retry) {
+        logger.error('GitHub authentication failed', error);
+        throw error;
+      } else {
+        logger.warn('GitHub authentication failed, continuing with limited functionality');
+        return false;
+      }
     }
   }
   
@@ -67,12 +156,15 @@ class GitHubEnhanced extends EventEmitter {
    * @param {string} owner - Repository owner
    * @param {string} repo - Repository name
    * @returns {Promise<Array>} List of open PRs
-   * @throws {Error} If not authenticated or request fails
    */
   async getOpenPRs(owner, repo) {
     try {
       if (!this.authenticated) {
-        await this.authenticate();
+        const success = await this.authenticate();
+        if (!success) {
+          logger.warn(`Cannot fetch open PRs for ${owner}/${repo}: Not authenticated`);
+          return [];
+        }
       }
       
       logger.info(`Fetching open PRs for ${owner}/${repo}`);
@@ -123,12 +215,15 @@ class GitHubEnhanced extends EventEmitter {
    * @param {string} owner - Repository owner
    * @param {string} repo - Repository name
    * @returns {Promise<Array>} List of branches
-   * @throws {Error} If not authenticated or request fails
    */
   async getBranches(owner, repo) {
     try {
       if (!this.authenticated) {
-        await this.authenticate();
+        const success = await this.authenticate();
+        if (!success) {
+          logger.warn(`Cannot fetch branches for ${owner}/${repo}: Not authenticated`);
+          return [];
+        }
       }
       
       logger.info(`Fetching branches for ${owner}/${repo}`);
@@ -302,13 +397,14 @@ class GitHubEnhanced extends EventEmitter {
   /**
    * Process the PR analysis queue
    * @returns {Promise<Object>} Processing results
-   * @throws {Error} If not authenticated
    */
   async processAnalysisQueue() {
     if (!this.authenticated) {
-      const error = new Error('Cannot process PR analysis queue: Not authenticated with GitHub');
-      logger.warn(error.message);
-      throw error;
+      const success = await this.authenticate();
+      if (!success) {
+        logger.warn('Cannot process PR analysis queue: Not authenticated with GitHub');
+        return { success: false, processed: 0, error: 'Not authenticated' };
+      }
     }
     
     if (this.prAnalysisQueue.length === 0) {
@@ -365,11 +461,11 @@ class GitHubEnhanced extends EventEmitter {
           error: error.message
         });
         
-        logger.logError(`Failed to analyze PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`, error);
+        logger.error(`Failed to analyze PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`, error);
       }
     }
     
-    // Clean up completed items (keep for reference)
+    // Clean up completed items
     this.cleanupQueue();
     
     return results;
@@ -561,13 +657,14 @@ class GitHubEnhanced extends EventEmitter {
   /**
    * Process the merge queue
    * @returns {Promise<Object>} Processing results
-   * @throws {Error} If not authenticated
    */
   async processMergeQueue() {
     if (!this.authenticated) {
-      const error = new Error('Cannot process merge queue: Not authenticated with GitHub');
-      logger.warn(error.message);
-      throw error;
+      const success = await this.authenticate();
+      if (!success) {
+        logger.warn('Cannot process merge queue: Not authenticated with GitHub');
+        return { success: false, processed: 0, error: 'Not authenticated' };
+      }
     }
     
     if (this.mergeQueue.length === 0) {
@@ -623,7 +720,7 @@ class GitHubEnhanced extends EventEmitter {
           error: error.message
         });
         
-        logger.logError(`Failed to merge PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`, error);
+        logger.error(`Failed to merge PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`, error);
       }
     }
     

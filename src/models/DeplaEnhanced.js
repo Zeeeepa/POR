@@ -61,7 +61,19 @@ class DeplaEnhanced {
           await this.gitHubEnhanced.authenticate();
           logger.info('GitHub integration authenticated');
         } catch (error) {
-          logger.error(`GitHub authentication failed: ${error.message}`);
+          logger.warn(`GitHub authentication failed: ${error.message}. Continuing with limited functionality.`);
+          // Don't throw error, continue with limited functionality
+        }
+      } else {
+        logger.info('GitHub token not configured. GitHub integration will be limited.');
+        // Try to authenticate with user prompt
+        try {
+          const success = await this.gitHubEnhanced.authenticate();
+          if (success) {
+            logger.info('GitHub integration authenticated via user prompt');
+          }
+        } catch (error) {
+          logger.warn('GitHub authentication failed after prompt. Continuing with limited functionality.');
         }
       }
       
@@ -149,6 +161,10 @@ class DeplaEnhanced {
       
       // Get PR details
       const prDetails = await this.gitHubEnhanced.getPRDetails(data.repoName, data.prNumber);
+      if (!prDetails) {
+        logger.warn(`Could not fetch PR details for #${data.prNumber} in ${data.repoName}`);
+        return;
+      }
       
       // Check if this is a step generation PR
       const isStepGeneration = this.isStepGenerationPR(prDetails);
@@ -157,32 +173,42 @@ class DeplaEnhanced {
         logger.info(`PR #${data.prNumber} is a step generation PR, auto-merging`);
         
         // Auto-merge the PR
-        await this.gitHubEnhanced.mergePR({
-          owner: data.repoName.split('/')[0],
-          repo: data.repoName.split('/')[1],
-          pull_number: data.prNumber,
-          merge_method: 'merge'
-        });
-        
-        // Update project with new steps
-        await this.updateProjectSteps(project, prDetails);
-        
-        logger.info(`Successfully merged step generation PR #${data.prNumber} for ${data.repoName}`);
+        try {
+          await this.gitHubEnhanced.mergePR({
+            owner: data.repoName.split('/')[0],
+            repo: data.repoName.split('/')[1],
+            pull_number: data.prNumber,
+            merge_method: 'merge'
+          });
+          
+          // Update project with new steps
+          await this.updateProjectSteps(project, prDetails);
+          
+          logger.info(`Successfully merged step generation PR #${data.prNumber} for ${data.repoName}`);
+        } catch (error) {
+          logger.error(`Failed to merge PR #${data.prNumber}: ${error.message}`);
+        }
       } else {
         // Add to analysis queue
-        this.gitHubEnhanced.addPrToAnalysisQueue({
-          owner: data.repoName.split('/')[0],
-          repo: data.repoName.split('/')[1],
-          pull_number: data.prNumber,
-          autoMerge: this.shouldAutoMergePR(prDetails)
-        });
-        
-        logger.info(`Added PR #${data.prNumber} to analysis queue`);
+        try {
+          this.gitHubEnhanced.addPrToAnalysisQueue({
+            owner: data.repoName.split('/')[0],
+            repo: data.repoName.split('/')[1],
+            pull_number: data.prNumber,
+            autoMerge: this.shouldAutoMergePR(prDetails)
+          });
+          
+          logger.info(`Added PR #${data.prNumber} to analysis queue`);
+        } catch (error) {
+          logger.error(`Failed to add PR #${data.prNumber} to analysis queue: ${error.message}`);
+        }
       }
     } catch (error) {
       logger.error(`Error handling new PR: ${error.message}`);
     }
   }
+  
+  // Rest of the methods remain the same...
   
   /**
    * Handle a new branch created on GitHub
