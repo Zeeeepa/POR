@@ -181,6 +181,45 @@ class GitHubEnhanced extends EventEmitter {
   }
   
   /**
+   * Get repositories for the authenticated user
+   * @param {Object} [options={}] - Options for fetching repositories
+   * @param {string} [options.type='all'] - Type of repositories to return (all, owner, public, private, member)
+   * @param {string} [options.sort='updated'] - Sort field (created, updated, pushed, full_name)
+   * @param {string} [options.direction='desc'] - Sort direction (asc, desc)
+   * @param {number} [options.per_page=100] - Number of results per page
+   * @param {number} [options.page=1] - Page number
+   * @returns {Promise<Array>} List of repositories
+   */
+  async getUserRepositories(options = {}) {
+    try {
+      if (!this.authenticated) {
+        const success = await this.authenticate();
+        if (!success) {
+          logger.warn('Cannot fetch user repositories: Not authenticated');
+          return [];
+        }
+      }
+      
+      logger.info('Fetching repositories for authenticated user');
+      
+      const { data: repos } = await this.octokit.repos.listForAuthenticatedUser({
+        type: options.type || 'all',
+        sort: options.sort || 'updated',
+        direction: options.direction || 'desc',
+        per_page: options.per_page || 100,
+        page: options.page || 1
+      });
+      
+      logger.info(`Found ${repos.length} repositories for authenticated user`);
+      
+      return repos;
+    } catch (error) {
+      logger.error(`Failed to get user repositories: ${error.message}`);
+      return [];
+    }
+  }
+  
+  /**
    * Get open pull requests for a repository
    * @param {string} owner - Repository owner
    * @param {string} repo - Repository name

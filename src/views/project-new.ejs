@@ -16,6 +16,35 @@
       padding: 2rem 0;
       margin-bottom: 2rem;
     }
+    .repo-item {
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    .repo-item:hover {
+      background-color: #f8f9fa;
+    }
+    .repo-item.selected {
+      background-color: #e9ecef;
+      border-left: 3px solid #0d6efd;
+    }
+    .repo-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 0.2em solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spinner-border .75s linear infinite;
+    }
+    @keyframes spinner-border {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -72,12 +101,36 @@
           <div class="card-body">
             <h5 class="card-title mb-4">Project Details</h5>
             
-            <form action="/projects/add" method="POST">
+            <form action="/projects/add" method="POST" id="projectForm">
               <div class="mb-3">
-                <label for="repoUrl" class="form-label">GitHub Repository URL</label>
-                <input type="text" class="form-control" id="repoUrl" name="repoUrl" 
-                       placeholder="https://github.com/username/repository" required>
-                <div class="form-text">Enter the full URL of the GitHub repository</div>
+                <label for="repoSelector" class="form-label">GitHub Repository</label>
+                <div class="input-group mb-3">
+                  <input type="text" class="form-control" id="repoSearch" placeholder="Search repositories...">
+                  <button class="btn btn-outline-secondary" type="button" id="refreshRepos">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                </div>
+                
+                <div class="card">
+                  <div class="card-body p-0 repo-list" id="repoList">
+                    <div class="text-center py-4" id="loadingRepos">
+                      <span class="loading-spinner me-2"></span>
+                      Loading repositories...
+                    </div>
+                    <div class="text-center py-4 d-none" id="noRepos">
+                      <i class="bi bi-exclamation-circle text-warning fs-4"></i>
+                      <p class="mt-2">No repositories found. Please check your GitHub token in settings.</p>
+                    </div>
+                    <div class="text-center py-4 d-none" id="errorRepos">
+                      <i class="bi bi-exclamation-triangle text-danger fs-4"></i>
+                      <p class="mt-2">Error loading repositories. Please check your GitHub token in settings.</p>
+                    </div>
+                    <!-- Repository items will be added here dynamically -->
+                  </div>
+                </div>
+                
+                <input type="hidden" id="repoUrl" name="repoUrl" required>
+                <div class="form-text">Select a GitHub repository from your account</div>
               </div>
               
               <div class="mb-3">
@@ -102,7 +155,7 @@
               </div>
               
               <div class="d-grid">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
                   <i class="bi bi-plus-circle"></i> Create Project
                 </button>
               </div>
@@ -148,5 +201,144 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const repoList = document.getElementById('repoList');
+      const repoSearch = document.getElementById('repoSearch');
+      const repoUrlInput = document.getElementById('repoUrl');
+      const submitBtn = document.getElementById('submitBtn');
+      const refreshBtn = document.getElementById('refreshRepos');
+      const loadingRepos = document.getElementById('loadingRepos');
+      const noRepos = document.getElementById('noRepos');
+      const errorRepos = document.getElementById('errorRepos');
+      
+      let repositories = [];
+      
+      // Load repositories on page load
+      loadRepositories();
+      
+      // Refresh repositories when button is clicked
+      refreshBtn.addEventListener('click', loadRepositories);
+      
+      // Filter repositories when search input changes
+      repoSearch.addEventListener('input', filterRepositories);
+      
+      // Load repositories from API
+      function loadRepositories() {
+        // Show loading indicator
+        loadingRepos.classList.remove('d-none');
+        noRepos.classList.add('d-none');
+        errorRepos.classList.add('d-none');
+        
+        // Clear existing repositories
+        const repoItems = repoList.querySelectorAll('.repo-item');
+        repoItems.forEach(item => item.remove());
+        
+        // Fetch repositories from API
+        fetch('/api/github/repositories')
+          .then(response => response.json())
+          .then(data => {
+            loadingRepos.classList.add('d-none');
+            
+            if (data.success && data.repositories && data.repositories.length > 0) {
+              repositories = data.repositories;
+              renderRepositories(repositories);
+            } else {
+              noRepos.classList.remove('d-none');
+            }
+          })
+          .catch(error => {
+            console.error('Error loading repositories:', error);
+            loadingRepos.classList.add('d-none');
+            errorRepos.classList.remove('d-none');
+          });
+      }
+      
+      // Render repositories in the list
+      function renderRepositories(repos) {
+        // Clear existing repositories
+        const repoItems = repoList.querySelectorAll('.repo-item');
+        repoItems.forEach(item => item.remove());
+        
+        if (repos.length === 0) {
+          noRepos.classList.remove('d-none');
+          return;
+        }
+        
+        noRepos.classList.add('d-none');
+        
+        // Add repositories to the list
+        repos.forEach(repo => {
+          const repoItem = document.createElement('div');
+          repoItem.className = 'repo-item';
+          repoItem.dataset.url = repo.html_url;
+          repoItem.dataset.name = repo.name;
+          repoItem.dataset.fullName = repo.full_name;
+          
+          repoItem.innerHTML = `
+            <div class="d-flex align-items-center">
+              <div class="flex-shrink-0">
+                <img src="${repo.owner.avatar_url}" alt="${repo.owner.login}" width="32" height="32" class="rounded-circle">
+              </div>
+              <div class="flex-grow-1 ms-3">
+                <h6 class="mb-0">${repo.full_name}</h6>
+                <small class="text-muted">${repo.description || 'No description'}</small>
+              </div>
+            </div>
+          `;
+          
+          repoItem.addEventListener('click', () => {
+            // Remove selected class from all items
+            document.querySelectorAll('.repo-item').forEach(item => {
+              item.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked item
+            repoItem.classList.add('selected');
+            
+            // Set repository URL in hidden input
+            repoUrlInput.value = repo.html_url;
+            
+            // Set project name if empty
+            const projectNameInput = document.getElementById('projectName');
+            if (!projectNameInput.value) {
+              projectNameInput.value = repo.name;
+            }
+            
+            // Enable submit button
+            submitBtn.disabled = false;
+          });
+          
+          repoList.appendChild(repoItem);
+        });
+      }
+      
+      // Filter repositories based on search input
+      function filterRepositories() {
+        const searchTerm = repoSearch.value.toLowerCase();
+        
+        if (!searchTerm) {
+          renderRepositories(repositories);
+          return;
+        }
+        
+        const filteredRepos = repositories.filter(repo => {
+          return repo.name.toLowerCase().includes(searchTerm) || 
+                 repo.full_name.toLowerCase().includes(searchTerm) ||
+                 (repo.description && repo.description.toLowerCase().includes(searchTerm));
+        });
+        
+        renderRepositories(filteredRepos);
+      }
+      
+      // Form validation
+      document.getElementById('projectForm').addEventListener('submit', function(event) {
+        if (!repoUrlInput.value) {
+          event.preventDefault();
+          alert('Please select a GitHub repository');
+        }
+      });
+    });
+  </script>
 </body>
 </html>
