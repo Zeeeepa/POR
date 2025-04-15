@@ -196,6 +196,23 @@ class MultiProjectManager {
   }
   
   /**
+   * Get a project by name
+   * @param {string} projectName - Name of the project
+   * @returns {Object} Project object or null if not found
+   */
+  getProjectByName(projectName) {
+    // Find the tab with the matching project name
+    const tab = this.projectTabs.find(tab => tab.projectName === projectName);
+    
+    if (!tab) {
+      return null;
+    }
+    
+    // Get the project from the project manager
+    return this.projectManager.getProject(tab.projectName);
+  }
+  
+  /**
    * Get the active project tab
    * @returns {Object} Active tab or null if none
    */

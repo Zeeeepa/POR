@@ -43,6 +43,49 @@ class DeplaEnhanced {
   }
   
   /**
+   * Get a project by name
+   * @param {string} projectName - Project name
+   * @returns {Object} Project object
+   */
+  getProject(projectName) {
+    // First try to get from the base manager
+    const baseProject = this.baseManager.getProject(projectName);
+    if (baseProject) {
+      return baseProject;
+    }
+    
+    // If not found in base manager, try the multi-project manager
+    return this.multiProjectManager.getProjectByName(projectName);
+  }
+  
+  /**
+   * Add a new project from a repository URL
+   * @param {string} repoUrl - Repository URL
+   * @param {string} projectName - Optional project name (defaults to repo name)
+   * @returns {Promise<Object>} Added project
+   */
+  async addProject(repoUrl, projectName = '') {
+    try {
+      logger.info(`Adding project from repository: ${repoUrl}`);
+      
+      // Use the base manager to add the project
+      const project = await this.baseManager.cloneRepository(repoUrl, projectName);
+      
+      // Also add it to the multi-project manager
+      await this.multiProjectManager.addProjectTab({
+        repoUrl,
+        projectName: project.config.name
+      });
+      
+      logger.info(`Project added: ${project.config.name}`);
+      return project;
+    } catch (error) {
+      logger.error(`Failed to add project: ${error.message}`);
+      throw error;
+    }
+  }
+  
+  /**
    * Initialize the enhanced manager
    * @returns {Promise<Object>} Initialization result
    */
