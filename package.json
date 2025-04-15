@@ -4,7 +4,6 @@
   "description": "Robust message queue system with multiple queue types and persistence",
   "main": "src/models/MessageQueueSystem.js",
   "scripts": {
-
     "test": "jest",
     "start": "node src/server.js"
   },
@@ -18,16 +17,17 @@
     "chart.js": "^4.3.0",
     "deepmerge": "^4.3.1",
     "dotenv": "^16.3.1",
-    "ejs": "^3.1.9",
+    "ejs": "^3.1.10",
     "express": "^4.18.2",
     "fs-extra": "^11.1.1",
-
+    "handlebars": "^4.7.8",
+    "lodash": "^4.17.21",
+    "memory-cache": "^0.2.0",
     "path": "^0.12.7",
     "uuid": "^9.0.0",
     "winston": "^3.10.0"
   },
   "devDependencies": {
-
     "jest": "^29.6.2"
   },
   "jest": {

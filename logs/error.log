@@ -1,0 +1,1 @@
+{"error":{"code":"EACCES","errno":-13,"path":"/custom","syscall":"mkdir"},"level":"error","message":"Failed to create templates directory","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}

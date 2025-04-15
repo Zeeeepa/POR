@@ -1,0 +1,110 @@
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/data/templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":60000,"enableCaching":false,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/custom/path","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"error":{"code":"EACCES","errno":-13,"path":"/custom","syscall":"mkdir"},"level":"error","message":"Failed to create templates directory","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: custom","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: handlebars","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: ejs","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"level":"info","message":"Registered template engine: simple","service":"depla-project-manager","timestamp":"2025-04-15 23:36:33"}
+{"cacheTTL":3600000,"enableCaching":true,"level":"info","message":"Template engine initialized","service":"depla-project-manager","templatesDir":"/tmp/POR/src/utils/__tests__/test-templates","timestamp":"2025-04-15 23:36:33"}
