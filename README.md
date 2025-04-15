@@ -1,125 +1,190 @@
-# Depla Project Manager
+# Message Queue System
 
-A project management tool for developers to organize and track project development with GitHub integration.
+A robust message queue system with support for multiple queue types, persistence, acknowledgment, monitoring, and more.
 
 ## Features
 
-- GitHub integration for repository management
-- Project requirements tracking
-- Implementation planning
-- Message templating and management
-- Configuration management
-- Webhook support for automated PR processing
+- **Multiple Queue Types**:
+  - FIFO (First-In-First-Out) queues
+  - Priority queues
+  - Delayed queues
 
-## Prerequisites
+- **Message Persistence**:
+  - In-memory storage
+  - File-based storage
+  - Extensible storage adapter system
 
-- Node.js (v14 or higher)
-- npm (v6 or higher)
-- GitHub account with a personal access token
+- **Message Acknowledgment and Retry**:
+  - Visibility timeout for message processing
+  - Automatic retry for failed messages
+  - Dead letter queues for unprocessable messages
+
+- **Queue Monitoring and Statistics**:
+  - Detailed queue statistics
+  - System-wide monitoring
+  - Event-based monitoring
+
+- **Rate Limiting and Throttling**:
+  - Per-queue rate limiting
+  - Configurable throttling
+
+- **Distributed Queue Processing**:
+  - Support for message groups in FIFO queues
+  - Scalable architecture
+
+- **Error Handling**:
+  - Specific error types
+  - Comprehensive error reporting
+  - Dead letter queues
 
 ## Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/depla-project-manager.git
-cd depla-project-manager
-```
-
-2. Install dependencies:
 ```bash
 npm install
 ```
 
-3. Create a `.env` file in the root directory with your GitHub token:
-```
-GITHUB_TOKEN=your_github_token_here
-```
-
-Alternatively, you can enter your GitHub token when prompted during startup.
-
 ## Usage
 
-Start the application:
+### Basic Usage
+
+```javascript
+const MessageQueueSystem = require('./src/models/MessageQueueSystem');
+
+// Create a new message queue system
+const queueSystem = new MessageQueueSystem({
+  storageType: 'memory', // or 'file'
+  storageOptions: {
+    // Storage-specific options
+  }
+});
+
+// Create a queue
+await queueSystem.createQueue('my-queue', {
+  type: 'fifo', // or 'priority', 'delayed'
+  // Queue-specific options
+});
+
+// Send a message
+const messageId = await queueSystem.sendMessage('my-queue', 'Hello, world!');
+
+// Receive messages
+const messages = await queueSystem.receiveMessages('my-queue', {
+  maxMessages: 10
+});
+
+// Process messages
+for (const message of messages) {
+  console.log(`Processing message: ${message.body}`);
+  
+  // Acknowledge the message when done
+  await queueSystem.acknowledgeMessage('my-queue', message.id);
+}
+
+// Clean up when done
+queueSystem.cleanup();
+```
+
+### FIFO Queues
+
+FIFO queues guarantee that messages are processed in the exact order they were sent.
+
+```javascript
+// Create a FIFO queue
+await queueSystem.createQueue('fifo-queue', { type: 'fifo' });
+
+// Send messages to different message groups
+await queueSystem.sendMessage('fifo-queue', 'Message 1', { messageGroupId: 'group1' });
+await queueSystem.sendMessage('fifo-queue', 'Message 2', { messageGroupId: 'group1' });
+await queueSystem.sendMessage('fifo-queue', 'Message 3', { messageGroupId: 'group2' });
+
+// Receive messages from a specific group
+const messages = await queueSystem.receiveMessages('fifo-queue', {
+  messageGroupId: 'group1',
+  maxMessages: 10
+});
+```
+
+### Priority Queues
+
+Priority queues process messages based on their priority level.
+
+```javascript
+// Create a priority queue
+await queueSystem.createQueue('priority-queue', {
+  type: 'priority',
+  priorityLevels: [1, 2, 3, 4, 5],
+  defaultPriority: 3
+});
+
+// Send messages with different priorities
+await queueSystem.sendMessage('priority-queue', 'High Priority', { priority: 5 });
+await queueSystem.sendMessage('priority-queue', 'Medium Priority', { priority: 3 });
+await queueSystem.sendMessage('priority-queue', 'Low Priority', { priority: 1 });
+
+// Receive messages (highest priority first)
+const messages = await queueSystem.receiveMessages('priority-queue');
+```
+
+### Delayed Queues
+
+Delayed queues make messages available for processing after a specified delay.
+
+```javascript
+// Create a delayed queue
+await queueSystem.createQueue('delayed-queue', { type: 'delayed' });
+
+// Send a message with a delay
+await queueSystem.sendMessage('delayed-queue', 'Delayed Message', {
+  delaySeconds: 60 // 1 minute
+});
+
+// Change the delay of a message
+await queueSystem.changeMessageDelay('delayed-queue', messageId, 30);
+```
+
+### Dead Letter Queues
+
+Dead letter queues store messages that couldn't be processed successfully.
+
+```javascript
+// Create source and dead letter queues
+await queueSystem.createQueue('source-queue');
+await queueSystem.createQueue('dlq-queue');
+
+// Set up dead letter queue
+await queueSystem.setDeadLetterQueue('source-queue', 'dlq-queue');
+
+// Move a message to the dead letter queue
+await queueSystem.deadLetterMessage('source-queue', messageId, 'Processing failed');
+```
+
+## API Reference
+
+### MessageQueueSystem
+
+- `constructor(options)`: Initialize the message queue system
+- `createQueue(name, options)`: Create a new queue
+- `deleteQueue(name)`: Delete a queue
+- `sendMessage(queueName, message, options)`: Send a message to a queue
+- `receiveMessages(queueName, options)`: Receive messages from a queue
+- `acknowledgeMessage(queueName, messageId)`: Acknowledge a message as processed
+- `deadLetterMessage(queueName, messageId, reason)`: Move a message to the dead letter queue
+- `purgeQueue(queueName)`: Remove all messages from a queue
+- `getQueueAttributes(queueName)`: Get queue attributes and statistics
+- `setQueueAttributes(queueName, attributes)`: Set queue attributes
+- `listQueues(prefix)`: List all queues with an optional prefix
+- `setDeadLetterQueue(sourceQueueName, deadLetterQueueName)`: Set up a dead letter queue
+- `changeMessageDelay(queueName, messageId, delaySeconds)`: Change the delay of a message
+- `getSystemStats()`: Get system statistics
+- `cleanup()`: Clean up resources
+
+## Testing
+
+Run the test suite:
+
 ```bash
-npm start
+npm test
 ```
-
-The application will be available at http://localhost:3000
-
-### GitHub Token Setup
-
-The application requires a GitHub token to function properly. You can provide it in one of the following ways:
-
-1. Create a `.env` file in the root directory with your GitHub token:
-```
-GITHUB_TOKEN=your_github_token_here
-```
-
-2. When you start the application without a token, you will be prompted to enter it in the console. The token will be saved to a `.env` file for future use.
-
-3. Configure it through the web interface at http://localhost:3000/settings.
-
-To create a GitHub token:
-1. Go to your GitHub account settings
-2. Navigate to Developer settings > Personal access tokens
-3. Generate a new token with the `repo` scope
-4. Copy the token and use it in the application
-
-## Configuration
-
-The application configuration is stored in `config/app_config.json`. You can modify settings through the web interface at http://localhost:3000/settings.
-
-### GitHub Settings
-
-- **Username**: Your GitHub username
-- **Personal Access Token**: Your GitHub personal access token with repo scope
-
-### General Settings
-
-- **Message Delay**: Delay between messages when sending batches (in milliseconds)
-- **Auto-start Processing**: Automatically start processing when loading a project
-
-### Webhook Settings
-
-- **Enable Webhooks**: Turn on/off webhook server
-- **Port**: Port for the webhook server (default: 3200)
-- **Secret**: Secret for webhook signature verification
-
-### Automation Settings
-
-- **Enable Automation**: Turn on/off automated processing
-- **Process Interval**: Time between processing runs (in milliseconds)
-- **Auto-start Next Phase**: Automatically start the next phase when current phase is mostly complete
-
-## Project Structure
-
-- `framework.js`: Core framework functionality
-- `src/`: Source code
-  - `server.js`: Express server
-  - `framework/`: Framework components
-  - `utils/`: Utility functions
-  - `models/`: Data models
-- `views/`: EJS templates
-- `public/`: Static assets
-- `templates/`: Message templates
-- `projects/`: Project data (created when adding projects)
-- `config/`: Application configuration
-
-## Troubleshooting
-
-### GitHub Token Issues
-
-If you encounter errors related to GitHub authentication:
-1. Check that your token is correctly set in the `.env` file or in the application settings
-2. Verify that your token has the necessary permissions (repo scope)
-3. Ensure your token hasn't expired
-
-### Server Start Issues
-
-If the server fails to start:
-1. Check that all dependencies are installed (`npm install`)
-2. Verify that the required port (default: 3000) is available
-3. Check the console output for specific error messages
 
 ## License
 
