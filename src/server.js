@@ -12,6 +12,7 @@ const logger = require('./utils/logger');
 // Import DeplaEnhanced directly to avoid circular dependency
 const DeplaEnhanced = require('./models/DeplaEnhanced');
 const CursorAutomation = require('./utils/CursorAutomation');
+const GitHubEnhanced = require('./utils/GitHubEnhanced');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -31,9 +32,13 @@ app.use(bodyParser.json());
 
 // Initialize DeplaEnhanced
 let deplaManager;
+let githubClient;
 
 // Initialize application
 async function initializeApp() {
+  // Initialize GitHub client
+  githubClient = new GitHubEnhanced();
+  
   // Use the directly imported DeplaEnhanced class
   deplaManager = new DeplaEnhanced();
   
@@ -58,6 +63,46 @@ app.get('/projects', async (req, res) => {
 // New route for creating a new project
 app.get('/projects/new', (req, res) => {
   res.render('project-new');
+});
+
+// New API route to get GitHub repositories
+app.get('/api/github/repositories', async (req, res) => {
+  try {
+    // Initialize GitHub client if not already initialized
+    if (!githubClient) {
+      githubClient = new GitHubEnhanced();
+    }
+    
+    // Get repositories
+    const repositories = await githubClient.getUserRepositories({
+      sort: 'updated',
+      direction: 'desc'
+    });
+    
+    // Return repositories as JSON
+    res.json({
+      success: true,
+      repositories: repositories.map(repo => ({
+        id: repo.id,
+        name: repo.name,
+        full_name: repo.full_name,
+        html_url: repo.html_url,
+        description: repo.description,
+        private: repo.private,
+        owner: {
+          login: repo.owner.login,
+          avatar_url: repo.owner.avatar_url
+        },
+        updated_at: repo.updated_at
+      }))
+    });
+  } catch (error) {
+    logger.error(`Failed to get GitHub repositories: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 app.get('/projects/:name', async (req, res) => {
