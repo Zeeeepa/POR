@@ -10,6 +10,8 @@ const fs = require('fs-extra');
 const readline = require('readline');
 const framework = require('./framework');
 const logger = require('./utils/logger');
+// Import DeplaEnhanced directly to avoid circular dependency
+const DeplaEnhanced = require('./models/DeplaEnhanced');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -85,7 +87,8 @@ let deplaManager;
 // Initialize application
 async function initializeApp() {
   await checkGitHubToken();
-  deplaManager = new framework.DeplaEnhanced();
+  // Use the directly imported DeplaEnhanced class
+  deplaManager = new DeplaEnhanced();
   
   // Start the server
   app.listen(PORT, () => {
