@@ -7,7 +7,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
-const { ProjectManager } = require('../framework');
+const ProjectManager = require('../framework/ProjectManager');
 
 class MultiProjectManager {
   constructor(config = {}) {
@@ -462,4 +462,4 @@ class MultiProjectManager {
   }
 }
 
-module.exports = MultiProjectManager; 
+module.exports = MultiProjectManager;

@@ -4,7 +4,7 @@
  * and improved message handling for concurrent development
  */
 
-const { DeplaManager } = require('../framework');
+const DeplaManager = require('../framework/DeplaManager');
 const WorkflowManager = require('./WorkflowManager');
 const MultiProjectManager = require('./MultiProjectManager');
 const MessageQueueManager = require('./MessageQueueManager');
