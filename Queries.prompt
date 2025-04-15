@@ -1,0 +1,372 @@
+####################
+QUERY 1 - PROJECT STRUCTURE ANALYSIS
+You are an enterprise-level code analyst specializing in JavaScript/Node.js applications. You are given a task to analyze the POR project structure and identify all components, their relationships, and potential issues.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Analyze the entire codebase structure
+2. Document all major components and their relationships
+3. Identify the current architecture patterns
+4. Create a comprehensive file listing with validation status
+5. Save your analysis to PROJECT_STRUCTURE.md in the project's root
+
+Codebase Analysis Framework Core Principles:
+- Provide analysis based exclusively on verifiable context
+- Validate all assumptions through codebase examination
+- Prioritize evidence-based recommendations with maximum accuracy
+- Identify primary architectural patterns and evaluate pattern consistency
+- Document all file dependencies and relationships
+
+For each file, provide a validation status:
+- [X] Valid and properly integrated
+- [--] Duplicate or redundant
+- [!] Contains potential issues
+- [?] Unclear purpose or integration
+
+Include a section specifically analyzing the files in the implement2 directory and how they should be integrated into the main project structure.
+
+####################
+QUERY 2 - CODE DUPLICATION AND REDUNDANCY ANALYSIS
+You are a data analyst and code quality specialist. You are given a task to identify all code duplications and redundancies in the POR project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Identify all duplicate code segments across the codebase
+2. Find redundant functionalities that serve similar purposes
+3. Analyze the implement2 directory for potential duplications with existing code
+4. Create a comprehensive report of all duplications
+5. Save your analysis to CODE_DUPLICATION.md in the project's root
+
+For each file, provide a duplication status:
+- [X] Unique with no duplications
+- [--] Duplicate with specific reference to its analogue
+- [!] Partial duplication with specific references
+- [?] Potential duplication requiring further analysis
+
+Include specific code snippets where duplication is found and recommend the optimal version to keep.
+
+####################
+QUERY 3 - FUNCTION CALLPOINT AND PARAMETER ANALYSIS
+You are a function callpoint assessor and parameter specialist. You are given a task to analyze all function call points and parameter usage in the POR project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Identify all major function call points throughout the codebase
+2. Analyze parameter usage for correctness and consistency
+3. Find misused, wrongly targeted, or incorrectly set parameters
+4. Document all function interfaces and their expected parameters
+5. Save your analysis to FUNCTION_ANALYSIS.md in the project's root
+
+For each function, provide:
+- Function name and location
+- Expected parameters and their types
+- Actual usage patterns across the codebase
+- Issues found with parameter usage
+- Recommendations for improvement
+
+Pay special attention to the functions in the implement2 directory and how they will interact with existing code when integrated.
+
+####################
+QUERY 4 - REQUIREMENTS VALIDATION
+You are a project manager specialist. You are given a task to validate that all functionalities mentioned in the IDEA.md file are implemented in the project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Read and analyze the IDEA.md file thoroughly
+2. Extract all functional and technical requirements
+3. Validate each requirement against the current codebase
+4. Identify missing or partially implemented features
+5. Save your analysis to REQUIREMENTS_VALIDATION.md in the project's root
+
+For each requirement, provide:
+- Requirement description
+- Implementation status: [X] Implemented, [--] Missing, [~] Partially implemented
+- Location in codebase where implemented (if applicable)
+- Recommendations for implementing missing features
+
+Pay special attention to how the files in the implement2 directory fulfill requirements from IDEA.md.
+
+####################
+QUERY 5 - INTEGRATION PLAN FOR IMPLEMENT2
+You are a senior software architect specializing in system integration. You are given a task to create a detailed plan for integrating the files from the implement2 directory into the main project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Analyze all files in the implement2 directory
+2. Determine the optimal location for each file in the main project structure
+3. Identify any modifications needed to existing files for proper integration
+4. Create a step-by-step integration plan
+5. Save your analysis to INTEGRATION_PLAN.md in the project's root
+
+For each file in implement2, provide:
+- Source file path
+- Target destination path
+- Required modifications to the file
+- Required modifications to existing files
+- Integration dependencies and order
+
+Include a section on potential risks and mitigation strategies for the integration process.
+
+####################
+QUERY 6 - SERVER ROUTES AND API ANALYSIS
+You are an API specialist and backend developer. You are given a task to analyze all server routes and API endpoints in the POR project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Identify all existing API routes and endpoints
+2. Document their purpose, parameters, and return values
+3. Analyze how the implement2 files will affect the API structure
+4. Identify any missing routes needed for new functionality
+5. Save your analysis to API_ANALYSIS.md in the project's root
+
+For each route/endpoint, provide:
+- Route path and HTTP method
+- Purpose and functionality
+- Required parameters
+- Return value structure
+- Authentication requirements (if any)
+- Potential issues or improvements
+
+Include a section specifically on new routes needed for the functionality in the implement2 directory.
+
+####################
+QUERY 7 - COMPREHENSIVE ANALYSIS SUMMARY
+You are a technical project lead responsible for coordinating multiple analysis streams. You are given a task to create a comprehensive summary of all analysis performed on the POR project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review all analysis documents created by previous queries
+2. Synthesize the findings into a cohesive overview
+3. Identify the most critical issues and priorities
+4. Create an actionable roadmap for implementation
+5. Save your analysis to ANALYSIS_SUMMARY.md in the project's root
+
+Include sections on:
+- Key findings from all analysis documents
+- Critical issues requiring immediate attention
+- Integration priorities for the implement2 directory
+- Recommended implementation phases
+- Success criteria for each phase
+
+This summary will serve as the foundation for Phase 2 implementation work.
+
+====================
+PHASE 2
+====================
+
+####################
+QUERY 8 - TEMPLATE MANAGEMENT IMPLEMENTATION
+You are a full-stack developer specializing in template systems. You are given a task to implement the template management functionality from the implement2 directory.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the ANALYSIS_SUMMARY.md and INTEGRATION_PLAN.md documents
+2. Implement the template management functionality
+3. Integrate templatemanager.js and template-manager.ejs into the project
+4. Update any dependent files for proper integration
+5. Create unit tests for the new functionality
+
+Implement the code with these principles:
+- Clean, well-documented code
+- Proper error handling
+- Consistent coding style with existing project
+- Comprehensive logging
+- Performance optimization
+
+####################
+QUERY 9 - CURSOR POSITION MANAGEMENT IMPLEMENTATION
+You are a frontend developer specializing in UI automation. You are given a task to implement the cursor position management functionality from the implement2 directory.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the ANALYSIS_SUMMARY.md and INTEGRATION_PLAN.md documents
+2. Implement the cursor position management functionality
+3. Integrate CursorPositionManager.js and cursor-positions.ejs into the project
+4. Update CursorAutomation.js for proper integration
+5. Create unit tests for the new functionality
+
+Implement the code with these principles:
+- Clean, well-documented code
+- Proper error handling
+- Consistent coding style with existing project
+- Comprehensive logging
+- Performance optimization
+
+####################
+QUERY 10 - PHASE CONFIGURATION IMPLEMENTATION
+You are a backend developer specializing in workflow systems. You are given a task to implement the phase configuration functionality from the implement2 directory.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the ANALYSIS_SUMMARY.md and INTEGRATION_PLAN.md documents
+2. Implement the phase configuration functionality
+3. Integrate PhaseConfigManager.js and phase-editor.ejs into the project
+4. Update any dependent files for proper integration
+5. Create unit tests for the new functionality
+
+Implement the code with these principles:
+- Clean, well-documented code
+- Proper error handling
+- Consistent coding style with existing project
+- Comprehensive logging
+- Performance optimization
+
+####################
+QUERY 11 - WORKFLOW DASHBOARD IMPLEMENTATION
+You are a full-stack developer specializing in dashboard systems. You are given a task to implement the workflow dashboard functionality from the implement2 directory.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the ANALYSIS_SUMMARY.md and INTEGRATION_PLAN.md documents
+2. Implement the workflow dashboard functionality
+3. Integrate workflow-dashboard.ejs into the project
+4. Update WorkflowManager.js for proper integration
+5. Create unit tests for the new functionality
+
+Implement the code with these principles:
+- Clean, well-documented code
+- Proper error handling
+- Consistent coding style with existing project
+- Comprehensive logging
+- Performance optimization
+
+####################
+QUERY 12 - SERVER ROUTES IMPLEMENTATION
+You are a backend developer specializing in API development. You are given a task to implement the server routes needed for the new functionality from the implement2 directory.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the API_ANALYSIS.md document
+2. Implement all required server routes for the new functionality
+3. Update server.js to include the new routes
+4. Ensure proper authentication and validation for all routes
+5. Create unit tests for the new routes
+
+Implement the code with these principles:
+- RESTful API design
+- Proper error handling and status codes
+- Input validation
+- Comprehensive documentation
+- Performance optimization
+
+####################
+QUERY 13 - INTEGRATION TESTING
+You are a QA engineer specializing in integration testing. You are given a task to create and execute integration tests for the newly implemented functionality.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review all implemented functionality from Phase 2
+2. Create comprehensive integration tests for:
+   - Template management
+   - Cursor position management
+   - Phase configuration
+   - Workflow dashboard
+3. Test all API routes and their interactions
+4. Document any issues found during testing
+5. Save your test results to INTEGRATION_TEST_RESULTS.md in the project's root
+
+Include sections on:
+- Test methodology
+- Test coverage
+- Issues found
+- Recommendations for fixes
+- Performance metrics
+
+====================
+PHASE 3
+====================
+
+####################
+QUERY 14 - BUG FIXES AND OPTIMIZATIONS
+You are a senior developer specializing in code quality and optimization. You are given a task to fix any bugs and optimize the newly implemented functionality.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the INTEGRATION_TEST_RESULTS.md document
+2. Fix all identified bugs and issues
+3. Optimize code for performance and maintainability
+4. Refactor any redundant or duplicate code
+5. Update documentation to reflect changes
+
+Focus on:
+- Critical bugs affecting functionality
+- Performance bottlenecks
+- Code duplication
+- Error handling improvements
+- Documentation accuracy
+
+####################
+QUERY 15 - FINAL DOCUMENTATION
+You are a technical writer specializing in software documentation. You are given a task to create comprehensive documentation for the POR project.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review all implemented functionality
+2. Create user documentation for all features
+3. Create technical documentation for developers
+4. Update the project README.md with installation and usage instructions
+5. Create API documentation for all endpoints
+
+Include sections on:
+- Project overview and architecture
+- Installation and setup
+- Feature documentation with screenshots
+- API reference
+- Troubleshooting guide
+- Contributing guidelines
+
+####################
+QUERY 16 - DEPLOYMENT PREPARATION
+You are a DevOps engineer specializing in application deployment. You are given a task to prepare the POR project for deployment.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Create a deployment checklist
+2. Configure environment variables
+3. Set up production-ready configurations
+4. Create deployment scripts
+5. Document the deployment process
+
+Include sections on:
+- System requirements
+- Environment setup
+- Database configuration
+- Security considerations
+- Monitoring and logging
+- Backup and recovery procedures
+
+####################
+QUERY 17 - FINAL PROJECT VALIDATION
+You are a project manager responsible for final project validation. You are given a task to validate that all requirements have been implemented correctly.
+
+Project URL: https://github.com/Zeeeepa/POR
+
+Your task:
+1. Review the original IDEA.md requirements
+2. Validate each requirement against the implemented functionality
+3. Identify any remaining gaps or issues
+4. Create a final project status report
+5. Save your analysis to FINAL_VALIDATION.md in the project's root
+
+Include sections on:
+- Requirements fulfillment status
+- Outstanding issues
+- Recommendations for future enhancements
+- Project success metrics
+- Lessons learned
