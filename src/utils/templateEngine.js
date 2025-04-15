@@ -1,14 +1,15 @@
 /**
  * templateEngine.js
- * Handles template rendering with variable substitution
+ * Unified template engine for rendering Handlebars templates
+ * This replaces both root templateEngine.js and src/utils/templateEngine.js
  */
 
 const Handlebars = require('handlebars');
 const fs = require('fs-extra');
 const path = require('path');
 const logger = require('./logger');
-const config = require('./config');
 const moment = require('moment');
+const config = require('./config');
 
 /**
  * Template engine for rendering templates with Handlebars
@@ -18,7 +19,7 @@ class TemplateEngine {
    * Initialize the template engine and register helpers
    */
   constructor() {
-    // Register custom helpers
+    this.templateCache = {};
     this.registerHelpers();
   }
   
@@ -51,7 +52,18 @@ class TemplateEngine {
       }
     });
     
-    // Conditional helper
+    // Equality comparison helper
+    Handlebars.registerHelper('ifEquals', function(arg1, arg2, options) {
+      return (arg1 === arg2) ? options.fn(this) : options.inverse(this);
+    });
+    
+    // Array contains helper
+    Handlebars.registerHelper('ifContains', function(arr, value, options) {
+      if (!arr) return options.inverse(this);
+      return (arr.indexOf(value) > -1) ? options.fn(this) : options.inverse(this);
+    });
+    
+    // Conditional helper with operators
     Handlebars.registerHelper('ifCond', function(v1, operator, v2, options) {
       switch (operator) {
         case '==':
@@ -86,7 +98,7 @@ class TemplateEngine {
     
     // Environment check helper
     Handlebars.registerHelper('ifEnv', function(env, options) {
-      return (config.server.env === env) ? options.fn(this) : options.inverse(this);
+      return (config.server?.env === env) ? options.fn(this) : options.inverse(this);
     });
     
     // Array length helper
@@ -100,11 +112,45 @@ class TemplateEngine {
       if (text.length <= length) return text;
       return text.substring(0, length) + '...';
     });
+    
+    // Markdown section helper
+    Handlebars.registerHelper('markdown', function(context) {
+      return context;
+    });
   }
   
   /**
-   * Render a template string with variables
-   * @param {string} templateString - Template string to render
+   * Get a compiled template from cache or load and compile it
+   * @param {string} templatePath - Path to the template file
+   * @returns {Function} Compiled Handlebars template
+   */
+  getTemplate(templatePath) {
+    const fullPath = path.isAbsolute(templatePath) 
+      ? templatePath
+      : path.join(process.cwd(), templatePath);
+    
+    if (this.templateCache[fullPath]) {
+      return this.templateCache[fullPath];
+    }
+    
+    try {
+      if (!fs.existsSync(fullPath)) {
+        throw new Error(`Template file does not exist: ${fullPath}`);
+      }
+      
+      const templateContent = fs.readFileSync(fullPath, 'utf-8');
+      const template = Handlebars.compile(templateContent);
+      this.templateCache[fullPath] = template;
+      return template;
+    } catch (error) {
+      logger.logError(`Error loading template ${fullPath}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Render a template string directly (not from a file)
+   * @param {string} templateString - Handlebars template string
    * @param {Object} [variables={}] - Variables to use in template
    * @returns {string} Rendered template
    * @throws {Error} If rendering fails
@@ -119,6 +165,22 @@ class TemplateEngine {
       return template(variables);
     } catch (error) {
       logger.logError('Failed to render template string', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Render a template with the provided data
+   * @param {string} templatePath - Path to the template file
+   * @param {Object} [data={}] - Data to populate the template
+   * @returns {string} Rendered template content
+   */
+  render(templatePath, data = {}) {
+    try {
+      const template = this.getTemplate(templatePath);
+      return template(data);
+    } catch (error) {
+      logger.logError(`Error rendering template ${templatePath}:`, error);
       throw error;
     }
   }

@@ -1,11 +1,15 @@
-// Express server for Depla Project Manager
+/**
+ * Unified Express server for Depla Project Manager
+ * This replaces both root server.js and src/server.js
+ */
 
 const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
-const fs = require('fs');
+const fs = require('fs-extra');
 const readline = require('readline');
-const framework = require('../framework');
+const framework = require('./framework');
+const logger = require('./utils/logger');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -16,10 +20,10 @@ const PORT = process.env.PORT || 3000;
 
 // Set up view engine
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, '..', 'views'));
+app.set('views', path.join(__dirname, 'views'));
 
 // Middleware
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -27,7 +31,7 @@ app.use(bodyParser.json());
 async function checkGitHubToken() {
   // Check if GITHUB_TOKEN exists in environment
   if (!process.env.GITHUB_TOKEN) {
-    console.log('\n⚠️  GitHub token not found in environment variables');
+    logger.warn('GitHub token not found in environment variables');
     
     // Create readline interface for user input
     const rl = readline.createInterface({
@@ -60,16 +64,16 @@ async function checkGitHubToken() {
           // Add GITHUB_TOKEN to the file
           envContent += `\nGITHUB_TOKEN=${token}\n`;
           fs.writeFileSync(envPath, envContent);
-          console.log('✅ GitHub token saved to .env file');
+          logger.info('GitHub token saved to .env file');
         }
       } else {
         // Create new .env file with token
         envContent = `GITHUB_TOKEN=${token}\n`;
         fs.writeFileSync(envPath, envContent);
-        console.log('✅ Created .env file with GitHub token');
+        logger.info('Created .env file with GitHub token');
       }
     } else {
-      console.error('❌ GitHub token is required for repository operations');
+      logger.error('GitHub token is required for repository operations');
       process.exit(1);
     }
   }
@@ -85,7 +89,7 @@ async function initializeApp() {
   
   // Start the server
   app.listen(PORT, () => {
-    console.log(`Depla Project Manager running on http://localhost:${PORT}`);
+    logger.info(`Depla Project Manager running on http://localhost:${PORT}`);
   });
 }
 
@@ -208,8 +212,18 @@ app.post('/settings', async (req, res) => {
   res.redirect('/settings');
 });
 
-// Initialize the application
-initializeApp().catch(error => {
-  console.error('Failed to initialize application:', error);
-  process.exit(1);
+// API routes
+app.get('/api/wsl2-test', async (req, res) => {
+  const result = await deplaManager.testWsl2Connection();
+  res.json(result);
 });
+
+// Initialize the application
+if (require.main === module) {
+  initializeApp().catch(error => {
+    logger.error('Failed to initialize application:', error);
+    process.exit(1);
+  });
+}
+
+module.exports = { app, initializeApp };

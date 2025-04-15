@@ -1,14 +1,25 @@
 /**
- * Framework index.js
- * Exports all framework components
+ * Unified framework module
+ * This exports all framework components from a single entry point
  */
 
+const ConfigManager = require('./ConfigManager');
 const DeplaManager = require('./DeplaManager');
 const ProjectManager = require('./ProjectManager');
-const ConfigManager = require('./ConfigManager');
+const GitHubEnhanced = require('../utils/GitHubEnhanced');
+const MessageQueueManager = require('../models/MessageQueueManager');
+const WorkflowManager = require('../models/WorkflowManager');
+const MultiProjectManager = require('../models/MultiProjectManager');
+const DeplaEnhanced = require('../models/DeplaEnhanced');
 
+// Export all framework components
 module.exports = {
+  ConfigManager,
   DeplaManager,
   ProjectManager,
-  ConfigManager
+  GitHubEnhanced,
+  MessageQueueManager,
+  WorkflowManager,
+  MultiProjectManager,
+  DeplaEnhanced
 };

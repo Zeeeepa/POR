@@ -1,6 +1,7 @@
 /**
  * logger.js
  * Centralized logging utility with multiple levels and file output
+ * This is the unified logger implementation that replaces both root logger.js and src/utils/logger.js
  */
 
 const winston = require('winston');
@@ -9,8 +10,31 @@ const fs = require('fs-extra');
 const config = require('./config');
 
 // Ensure logs directory exists
-const logsDir = config.logging.directory;
+const logsDir = config.logging?.directory || path.join(process.cwd(), 'logs');
 fs.ensureDirSync(logsDir);
+
+// Define log levels
+const logLevels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  http: 3,
+  debug: 4,
+  silly: 5
+};
+
+// Define log colors
+const logColors = {
+  error: 'red',
+  warn: 'yellow',
+  info: 'green',
+  http: 'magenta',
+  debug: 'blue',
+  silly: 'grey'
+};
+
+// Add colors to Winston
+winston.addColors(logColors);
 
 // Define log format
 const logFormat = winston.format.combine(
@@ -39,26 +63,27 @@ const consoleFormat = winston.format.combine(
 
 // Create the logger
 const logger = winston.createLogger({
-  level: config.logging.level,
+  level: config.logging?.level || process.env.LOG_LEVEL || 'info',
   format: logFormat,
-  defaultMeta: { service: config.logging.serviceName },
+  defaultMeta: { service: config.logging?.serviceName || 'depla-service' },
   transports: [
     // Write all logs to console
     new winston.transports.Console({
-      format: consoleFormat
+      format: consoleFormat,
+      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug'
     }),
     // Write all logs with level 'info' and below to combined.log
     new winston.transports.File({
       filename: path.join(logsDir, 'combined.log'),
-      maxsize: config.logging.maxSize,
-      maxFiles: config.logging.maxFiles,
+      maxsize: config.logging?.maxSize || 5242880, // 5MB
+      maxFiles: config.logging?.maxFiles || 5,
     }),
     // Write all logs with level 'error' and below to error.log
     new winston.transports.File({
       filename: path.join(logsDir, 'error.log'),
       level: 'error',
-      maxsize: config.logging.maxSize,
-      maxFiles: config.logging.maxFiles,
+      maxsize: config.logging?.maxSize || 5242880, // 5MB
+      maxFiles: config.logging?.maxFiles || 5,
     })
   ],
   // Don't exit on uncaught exceptions
@@ -68,7 +93,7 @@ const logger = winston.createLogger({
 // Add a stream for Morgan HTTP logger integration
 logger.stream = {
   write: function(message) {
-    logger.info(message.trim());
+    logger.http(message.trim());
   }
 };
 
