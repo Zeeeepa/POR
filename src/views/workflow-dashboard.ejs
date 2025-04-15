@@ -1,0 +1,158 @@
+workflow-dashboard.ejscat > src/views/workflow-dashboard.ejs << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Dashboard</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Workflow Dashboard</h1>
+            <p>Monitor and manage your active workflows</p>
+        </header>
+        <div class="dashboard-controls">
+            <div class="filter-container">
+                <label for="project-filter">Project:</label>
+                <select id="project-filter">
+                    <option value="all">All Projects</option>
+                    <% projects.forEach(function(project) { %>
+                        <option value="<%= project.id %>"><%= project.name %></option>
+                    <% }); %>
+                </select>
+            </div>
+            <div class="filter-container">
+                <label for="status-filter">Status:</label>
+                <select id="status-filter">
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="paused">Paused</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+            <div class="search-container">
+                <input type="text" id="workflow-search" placeholder="Search workflows...">
+            </div>
+            <button id="refresh-dashboard" class="btn btn-primary">Refresh</button>
+        </div>
+        <div class="dashboard-summary">
+            <div class="summary-card">
+                <h3>Active Workflows</h3>
+                <div class="summary-value"><%= stats.active %></div>
+            </div>
+            <div class="summary-card">
+                <h3>Completed Today</h3>
+                <div class="summary-value"><%= stats.completedToday %></div>
+            </div>
+            <div class="summary-card">
+                <h3>Success Rate</h3>
+                <div class="summary-value"><%= stats.successRate %>%</div>
+            </div>
+            <div class="summary-card">
+                <h3>Avg. Duration</h3>
+                <div class="summary-value"><%= stats.avgDuration %> min</div>
+            </div>
+        </div>
+        <div class="dashboard-charts">
+            <div class="chart-container">
+                <h3>Workflow Status Distribution</h3>
+                <canvas id="status-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Workflow Completion Trend</h3>
+                <canvas id="trend-chart"></canvas>
+            </div>
+        </div>
+        <div class="workflows-container">
+            <h2>Active Workflows</h2>
+            <table class="workflows-table">
+                <thead>
+                    <tr>
+                        <th>Workflow</th>
+                        <th>Project</th>
+                        <th>Current Phase</th>
+                        <th>Progress</th>
+                        <th>Started</th>
+                        <th>Est. Completion</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% workflows.forEach(function(workflow) { %>
+                        <tr data-id="<%= workflow.id %>" class="workflow-row <%= workflow.status.toLowerCase() %>">
+                            <td><%= workflow.name %></td>
+                            <td><%= workflow.project ? workflow.project.name : 'N/A' %></td>
+                            <td><%= workflow.currentPhase ? workflow.currentPhase.name : 'Not started' %></td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: <%= workflow.progress %>%"></div>
+                                </div>
+                                <span class="progress-text"><%= workflow.progress %>%</span>
+                            </td>
+                            <td><%= workflow.startedAt %></td>
+                            <td><%= workflow.estimatedCompletion %></td>
+                            <td><span class="status-badge <%= workflow.status.toLowerCase() %>"><%= workflow.status %></span></td>
+                            <td class="actions">
+                                <button class="btn-view" data-id="<%= workflow.id %>">View</button>
+                                <% if (workflow.status === 'Active') { %>
+                                    <button class="btn-pause" data-id="<%= workflow.id %>">Pause</button>
+                                <% } else if (workflow.status === 'Paused') { %>
+                                    <button class="btn-resume" data-id="<%= workflow.id %>">Resume</button>
+                                <% } %>
+                                <button class="btn-stop" data-id="<%= workflow.id %>">Stop</button>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+        <div class="completed-workflows">
+            <h2>Recently Completed Workflows</h2>
+            <table class="workflows-table">
+                <thead>
+                    <tr>
+                        <th>Workflow</th>
+                        <th>Project</th>
+                        <th>Duration</th>
+                        <th>Completed</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% completedWorkflows.forEach(function(workflow) { %>
+                        <tr data-id="<%= workflow.id %>" class="workflow-row completed">
+                            <td><%= workflow.name %></td>
+                            <td><%= workflow.project ? workflow.project.name : 'N/A' %></td>
+                            <td><%= workflow.duration %> min</td>
+                            <td><%= workflow.completedAt %></td>
+                            <td><span class="status-badge <%= workflow.status.toLowerCase() %>"><%= workflow.status %></span></td>
+                            <td class="actions">
+                                <button class="btn-view" data-id="<%= workflow.id %>">View</button>
+                                <button class="btn-restart" data-id="<%= workflow.id %>">Restart</button>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div id="workflow-detail-modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close">&times;</span>
+            <h2>Workflow Details</h2>
+            <div id="workflow-detail-content">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+    <script src="/js/workflow-dashboard.js"></script>
+</body>
+</html>
+EOL

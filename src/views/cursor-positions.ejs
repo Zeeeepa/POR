@@ -1,0 +1,102 @@
+cat > src/views/cursor-positions.ejs << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cursor Position Manager</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Cursor Position Manager</h1>
+            <p>Define and manage named cursor positions for automated workflows</p>
+        </header>
+        <div class="cursor-controls">
+            <button id="new-position" class="btn btn-primary">New Position</button>
+            <button id="capture-position" class="btn btn-success">Capture Current Position</button>
+            <button id="import-positions" class="btn btn-secondary">Import</button>
+            <button id="export-positions" class="btn btn-secondary">Export</button>
+            <div class="search-container">
+                <input type="text" id="position-search" placeholder="Search positions...">
+            </div>
+        </div>
+        <div class="positions-container">
+            <div class="positions-list">
+                <h2>Saved Positions</h2>
+                <ul id="positions">
+                    <% positions.forEach(function(position) { %>
+                        <li data-id="<%= position.id %>" class="position-item">
+                            <div class="position-info">
+                                <h3><%= position.name %></h3>
+                                <p>X: <%= position.x %>, Y: <%= position.y %></p>
+                                <p><%= position.description %></p>
+                            </div>
+                            <div class="position-actions">
+                                <button class="btn-edit" data-id="<%= position.id %>">Edit</button>
+                                <button class="btn-test" data-id="<%= position.id %>">Test</button>
+                                <button class="btn-delete" data-id="<%= position.id %>">Delete</button>
+                            </div>
+                        </li>
+                    <% }); %>
+                </ul>
+            </div>
+            <div class="position-editor">
+                <h2>Position Editor</h2>
+                <form id="position-form">
+                    <div class="form-group">
+                        <label for="position-name">Position Name</label>
+                        <input type="text" id="position-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="position-description">Description</label>
+                        <textarea id="position-description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group coordinates">
+                        <div class="coordinate">
+                            <label for="position-x">X Coordinate</label>
+                            <input type="number" id="position-x" name="x" required>
+                        </div>
+                        <div class="coordinate">
+                            <label for="position-y">Y Coordinate</label>
+                            <input type="number" id="position-y" name="y" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="position-application">Associated Application (optional)</label>
+                        <input type="text" id="position-application" name="application">
+                    </div>
+                    <div class="form-group">
+                        <label for="position-group">Group</label>
+                        <select id="position-group" name="group">
+                            <option value="default">Default</option>
+                            <option value="workflow">Workflow</option>
+                            <option value="application">Application Specific</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save Position</button>
+                        <button type="button" id="cancel-edit" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div id="position-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Confirm Delete</h2>
+            <p>Are you sure you want to delete this cursor position? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="confirm-delete" class="btn btn-danger">Delete</button>
+                <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <script src="/js/cursor-positions.js"></script>
+</body>
+</html>
+EOL
