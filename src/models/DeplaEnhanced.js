@@ -13,6 +13,8 @@ const GitHubEnhanced = require('../utils/GitHubEnhanced');
 const CursorAutomation = require('../utils/CursorAutomation');
 const ConfigManager = require('../framework/ConfigManager');
 const logger = require('../utils/logger');
+const fs = require('fs-extra');
+const path = require('path');
 
 class DeplaEnhanced {
   constructor() {
@@ -70,6 +72,14 @@ class DeplaEnhanced {
         try {
           const success = await this.gitHubEnhanced.authenticate();
           if (success) {
+            // Save the token to the config
+            this.updateConfig({
+              ...this.config,
+              github: {
+                ...this.config.github,
+                token: process.env.GITHUB_TOKEN
+              }
+            });
             logger.info('GitHub integration authenticated via user prompt');
           }
         } catch (error) {
@@ -208,8 +218,6 @@ class DeplaEnhanced {
     }
   }
   
-  // Rest of the methods remain the same...
-  
   /**
    * Handle a new branch created on GitHub
    * @param {Object} data - Branch data
@@ -298,10 +306,10 @@ class DeplaEnhanced {
       'auto-merge',
       'automerge',
       'auto merge',
-      'automated update',
-      'step generation'
+      'automated pr'
     ];
     
+    // Check title and body for keywords
     for (const keyword of autoMergeKeywords) {
       if (title.includes(keyword) || body.includes(keyword)) {
         return true;
@@ -317,29 +325,18 @@ class DeplaEnhanced {
    * @returns {boolean} Whether this is a feature branch
    */
   isFeatureBranch(branchName) {
-    // Check branch naming patterns
+    // Feature branch detection logic
+    // This is a simplified implementation
+    
     const featurePrefixes = [
       'feature/',
       'feat/',
       'component/',
-      'implement-'
+      'implement/'
     ];
     
     for (const prefix of featurePrefixes) {
       if (branchName.startsWith(prefix)) {
-        return true;
-      }
-    }
-    
-    // Check for feature indicators in branch name
-    const featureKeywords = [
-      '-feature-',
-      '-component-',
-      '-implementation-'
-    ];
-    
-    for (const keyword of featureKeywords) {
-      if (branchName.includes(keyword)) {
         return true;
       }
     }
@@ -355,254 +352,198 @@ class DeplaEnhanced {
    */
   async updateProjectSteps(project, prDetails) {
     try {
-      logger.info(`Updating steps for project ${project.name} from PR #${prDetails.number}`);
+      logger.info(`Updating project steps for ${project.config.name}`);
       
-      // Get the STEPS.md content from the PR
+      // Find STEPS.md file in PR
       const stepsFile = prDetails.files.find(file => 
         file.filename.toLowerCase() === 'steps.md' || 
         file.filename.toLowerCase().endsWith('/steps.md')
       );
       
       if (!stepsFile) {
-        logger.warn(`No STEPS.md file found in PR #${prDetails.number}`);
+        logger.warn('No STEPS.md file found in PR');
         return false;
       }
       
       // Get file content
-      const fileContent = await this.gitHubEnhanced.getFileContent(
-        prDetails.head.repo.owner.login,
-        prDetails.head.repo.name,
+      const [owner, repo] = prDetails.base.repo.full_name.split('/');
+      const stepsContent = await this.gitHubEnhanced.getFileContent(
+        owner,
+        repo,
         stepsFile.filename,
         prDetails.head.sha
       );
       
-      if (!fileContent) {
-        logger.warn(`Failed to get content for ${stepsFile.filename}`);
+      if (!stepsContent) {
+        logger.warn('Could not fetch STEPS.md content');
         return false;
       }
       
       // Update project steps
-      await project.updateSteps(fileContent);
+      const stepsPath = path.join(project.path, 'STEPS.md');
+      fs.writeFileSync(stepsPath, stepsContent, 'utf8');
       
-      logger.info(`Successfully updated steps for project ${project.name}`);
+      // Reload steps in project
+      project.loadSteps();
+      
+      logger.info(`Updated steps for project ${project.config.name}`);
       return true;
     } catch (error) {
-      logger.error(`Error updating project steps: ${error.message}`);
+      logger.error(`Failed to update project steps: ${error.message}`);
       return false;
     }
   }
   
   /**
-   * Update feature branch status in project
+   * Update project with feature branch status
    * @param {Object} project - Project object
    * @param {string} branchName - Branch name
    * @returns {Promise<boolean>} Success status
    */
   async updateFeatureBranchStatus(project, branchName) {
     try {
-      logger.info(`Updating feature branch status for ${branchName} in project ${project.name}`);
+      logger.info(`Updating feature branch status for ${project.config.name}: ${branchName}`);
       
       // Extract feature name from branch
-      let featureName = branchName;
+      const featureName = this.extractFeatureNameFromBranch(branchName);
       
-      // Remove prefixes
-      const prefixes = ['feature/', 'feat/', 'component/', 'implement-'];
-      for (const prefix of prefixes) {
-        if (featureName.startsWith(prefix)) {
-          featureName = featureName.substring(prefix.length);
-          break;
-        }
+      // Update project config with feature branch
+      if (!project.config.featureBranches) {
+        project.config.featureBranches = [];
       }
       
-      // Convert dashes to spaces
-      featureName = featureName.replace(/-/g, ' ');
+      // Check if branch already exists
+      const existingIndex = project.config.featureBranches.findIndex(
+        branch => branch.name === branchName
+      );
       
-      // Find matching component in project phases
-      let found = false;
-      
-      for (const phase of project.phases) {
-        for (const component of phase.components) {
-          // Check if component name matches feature name (case insensitive partial match)
-          if (component.name.toLowerCase().includes(featureName.toLowerCase()) ||
-              featureName.toLowerCase().includes(component.name.toLowerCase())) {
-            
-            // Mark component as in progress
-            component.inProgress = true;
-            found = true;
-            
-            logger.info(`Marked component "${component.name}" as in progress`);
-          }
-        }
-      }
-      
-      if (found) {
-        // Save updated project
-        await project.save();
-        return true;
+      if (existingIndex !== -1) {
+        // Update existing branch
+        project.config.featureBranches[existingIndex].updatedAt = new Date().toISOString();
       } else {
-        logger.warn(`No matching component found for branch ${branchName}`);
-        return false;
+        // Add new branch
+        project.config.featureBranches.push({
+          name: branchName,
+          feature: featureName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          status: 'active'
+        });
       }
+      
+      // Save project config
+      project.saveConfig();
+      
+      logger.info(`Updated feature branch status for ${project.config.name}`);
+      return true;
     } catch (error) {
-      logger.error(`Error updating feature branch status: ${error.message}`);
+      logger.error(`Failed to update feature branch status: ${error.message}`);
       return false;
     }
   }
   
   /**
-   * Add a new project
-   * @param {Object} projectData - Project data including repo URL
-   * @returns {Promise<Object>} Added project
+   * Extract feature name from branch name
+   * @param {string} branchName - Branch name
+   * @returns {string} Feature name
    */
-  async addProject(projectData) {
-    try {
-      // Add project using the multi-project manager
-      const tab = await this.multiProjectManager.addProjectTab(projectData);
-      logger.info(`Added project: ${tab.projectName}`);
-      return { success: true, tab };
-    } catch (error) {
-      logger.error(`Failed to add project: ${error.message}`);
-      return { success: false, error: error.message };
+  extractFeatureNameFromBranch(branchName) {
+    // Remove prefix
+    let featureName = branchName;
+    
+    const prefixes = ['feature/', 'feat/', 'component/', 'implement/'];
+    for (const prefix of prefixes) {
+      if (branchName.startsWith(prefix)) {
+        featureName = branchName.substring(prefix.length);
+        break;
+      }
     }
+    
+    // Convert kebab-case to title case
+    return featureName
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
   
   /**
-   * Add multiple projects in batch
-   * @param {Array<Object>} projectsData - Array of project data objects
-   * @returns {Promise<Object>} Added projects result
+   * Create a new project
+   * @param {Object} projectData - Project data
+   * @returns {Promise<Object>} Creation result
    */
-  async addMultipleProjects(projectsData) {
+  async createProject(projectData) {
     try {
-      // Add projects using the multi-project manager
-      const tabs = await this.multiProjectManager.addMultipleProjectTabs(projectsData);
-      logger.info(`Added ${tabs.length} projects`);
-      return { success: true, tabs };
-    } catch (error) {
-      logger.error(`Failed to add multiple projects: ${error.message}`);
-      return { success: false, error: error.message };
-    }
-  }
-  
-  /**
-   * Initialize a project with template files
-   * @param {string} tabId - ID of the project tab
-   * @returns {Promise<Object>} Initialization result
-   */
-  async initializeProject(tabId) {
-    try {
-      const success = await this.multiProjectManager.initializeProject(tabId);
-      return { success };
-    } catch (error) {
-      logger.error(`Failed to initialize project: ${error.message}`);
-      return { success: false, error: error.message };
-    }
-  }
-  
-  /**
-   * Apply a workflow to a project
-   * @param {string} tabId - ID of the project tab
-   * @param {string} workflowId - ID of the workflow to apply
-   * @returns {Promise<Object>} Result of applying workflow
-   */
-  async applyWorkflowToProject(tabId, workflowId) {
-    try {
-      // Apply workflow using multi-project manager
-      const success = await this.multiProjectManager.applyWorkflowToProject(tabId, workflowId);
+      logger.info(`Creating new project: ${projectData.name}`);
       
-      if (success) {
-        // Get tab and start workflow execution
-        const tab = this.multiProjectManager.getAllProjectTabs().find(t => t.id === tabId);
-        
-        if (tab) {
-          // Start workflow execution
-          const executionId = this.workflowManager.startWorkflowExecution(
-            workflowId,
-            tab.projectId,
-            {
-              projectName: tab.projectName,
-              repoUrl: tab.repoUrl
-            }
-          );
-          
-          logger.info(`Started workflow execution: ${executionId} for project ${tab.projectName}`);
-          
-          return { 
-            success: true, 
-            executionId, 
-            message: `Workflow ${workflowId} applied to project ${tab.projectName}` 
-          };
-        }
+      const result = await this.multiProjectManager.createProject(projectData);
+      
+      if (result.success) {
+        logger.info(`Project created: ${projectData.name}`);
+      } else {
+        logger.error(`Failed to create project: ${result.error}`);
       }
       
-      return { success };
+      return result;
     } catch (error) {
-      logger.error(`Failed to apply workflow: ${error.message}`);
+      logger.error(`Failed to create project: ${error.message}`);
       return { success: false, error: error.message };
     }
   }
   
   /**
-   * Create a new workflow
-   * @param {string} name - Workflow name
-   * @param {Object} data - Initial workflow data
-   * @returns {Promise<Object>} Created workflow
+   * Generate steps for a project
+   * @param {string} projectId - Project ID
+   * @returns {Promise<Object>} Generation result
    */
-  async createWorkflow(name, data = {}) {
+  async generateSteps(projectId) {
     try {
-      const workflowId = this.workflowManager.createWorkflow(name, data);
-      return { 
-        success: true, 
-        workflowId, 
-        workflow: this.workflowManager.getWorkflow(workflowId) 
+      logger.info(`Generating steps for project: ${projectId}`);
+      
+      const project = this.multiProjectManager.getProject(projectId);
+      if (!project) {
+        throw new Error(`Project not found: ${projectId}`);
+      }
+      
+      // Get requirements and prompt content
+      const requirementsPath = project.getRequirementsPath();
+      const promptPath = path.join(project.path, project.templateFiles.stepByStep);
+      
+      if (!fs.existsSync(requirementsPath)) {
+        throw new Error(`Requirements file not found: ${requirementsPath}`);
+      }
+      
+      if (!fs.existsSync(promptPath)) {
+        throw new Error(`Prompt file not found: ${promptPath}`);
+      }
+      
+      const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
+      const promptContent = fs.readFileSync(promptPath, 'utf8');
+      
+      // Send message to generate steps
+      const result = await this.sendMessage({
+        type: 'generate-steps',
+        projectName: project.config.name,
+        requirementsContent,
+        promptContent,
+        repository: project.config.repository
+      }, 'high');
+      
+      logger.info(`Steps generation initiated for project: ${projectId}`);
+      
+      return {
+        success: true,
+        message: `Implementation Plan for ${project.config.name}\n\nGenerating... Please wait for completion.\n`,
+        messageId: result.messageId
       };
     } catch (error) {
-      logger.error(`Failed to create workflow: ${error.message}`);
+      logger.error(`Failed to generate steps: ${error.message}`);
       return { success: false, error: error.message };
     }
   }
   
   /**
-   * Add a phase to a workflow
-   * @param {string} workflowId - Workflow ID
-   * @param {Object} phaseData - Phase configuration
-   * @returns {Promise<Object>} Added phase result
-   */
-  async addPhaseToWorkflow(workflowId, phaseData) {
-    try {
-      const phaseIndex = this.workflowManager.addPhaseToWorkflow(workflowId, phaseData);
-      return { 
-        success: true, 
-        phaseIndex,
-        workflow: this.workflowManager.getWorkflow(workflowId)
-      };
-    } catch (error) {
-      logger.error(`Failed to add phase: ${error.message}`);
-      return { success: false, error: error.message };
-    }
-  }
-  
-  /**
-   * Create a new template
-   * @param {string} templateName - Template name
-   * @param {Object} templateData - Template configuration
-   * @returns {Promise<Object>} Template creation result
-   */
-  async createTemplate(templateName, templateData) {
-    try {
-      const success = this.workflowManager.saveTemplate(templateName, templateData);
-      return { 
-        success, 
-        template: this.workflowManager.getTemplate(templateName)
-      };
-    } catch (error) {
-      logger.error(`Failed to create template: ${error.message}`);
-      return { success: false, error: error.message };
-    }
-  }
-  
-  /**
-   * Capture a cursor position for input
-   * @param {string} name - Name for this position
+   * Capture cursor position for automation
+   * @param {string} name - Position name
    * @returns {Promise<Object>} Captured position
    */
   async captureCursorPosition(name) {

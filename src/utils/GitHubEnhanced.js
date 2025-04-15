@@ -30,11 +30,29 @@ class GitHubEnhanced extends EventEmitter {
     this.authenticationFailed = false;
     
     // Initialize if token is provided
-    if (options.token || config.github.token) {
+    if (options.token || config.github?.token) {
       this.authenticate().catch(err => {
         this.authenticationFailed = true;
         logger.warn('GitHub authentication failed during initialization, will retry when needed');
       });
+    } else {
+      // Create empty .env file if it doesn't exist
+      this.ensureEnvFileExists();
+    }
+  }
+  
+  /**
+   * Ensure .env file exists
+   */
+  ensureEnvFileExists() {
+    try {
+      const envPath = path.join(process.cwd(), '.env');
+      if (!fs.existsSync(envPath)) {
+        fs.writeFileSync(envPath, '# Environment variables\n', 'utf8');
+        logger.info('Created empty .env file');
+      }
+    } catch (error) {
+      logger.error(`Failed to create .env file: ${error.message}`);
     }
   }
   
@@ -60,36 +78,47 @@ class GitHubEnhanced extends EventEmitter {
     });
     
     if (token) {
-      // Save token to .env file
-      const envPath = path.join(process.cwd(), '.env');
-      let envContent = '';
-      
-      if (fs.existsSync(envPath)) {
-        // Read existing .env file
-        envContent = fs.readFileSync(envPath, 'utf8');
+      try {
+        // Ensure .env file exists
+        const envPath = path.join(process.cwd(), '.env');
+        let envContent = '';
         
-        // Check if GITHUB_TOKEN already exists in the file
-        if (envContent.includes('GITHUB_TOKEN=')) {
-          // Replace existing token
-          envContent = envContent.replace(/GITHUB_TOKEN=.*(\r?\n|$)/, `GITHUB_TOKEN=${token}$1`);
+        if (fs.existsSync(envPath)) {
+          // Read existing .env file
+          envContent = fs.readFileSync(envPath, 'utf8');
+          
+          // Check if GITHUB_TOKEN already exists in the file
+          if (envContent.includes('GITHUB_TOKEN=')) {
+            // Replace existing token
+            envContent = envContent.replace(/GITHUB_TOKEN=.*(\\r?\\n|$)/, `GITHUB_TOKEN=${token}$1`);
+          } else {
+            // Add GITHUB_TOKEN to the file
+            envContent += `\nGITHUB_TOKEN=${token}\n`;
+          }
         } else {
-          // Add GITHUB_TOKEN to the file
-          envContent += `\nGITHUB_TOKEN=${token}\n`;
+          // Create new .env file with token
+          envContent = `GITHUB_TOKEN=${token}\n`;
         }
+        
+        // Write to .env file
         fs.writeFileSync(envPath, envContent);
-      } else {
-        // Create new .env file with token
-        envContent = `GITHUB_TOKEN=${token}\n`;
-        fs.writeFileSync(envPath, envContent);
+        
+        logger.info('GitHub token saved to .env file');
+        
+        // Update environment variable
+        process.env.GITHUB_TOKEN = token;
+        config.github.token = token;
+        
+        return token;
+      } catch (error) {
+        logger.error(`Failed to save GitHub token to .env file: ${error.message}`);
+        
+        // Still update environment variables even if file save fails
+        process.env.GITHUB_TOKEN = token;
+        config.github.token = token;
+        
+        return token;
       }
-      
-      logger.info('GitHub token saved to .env file');
-      
-      // Update environment variable
-      process.env.GITHUB_TOKEN = token;
-      config.github.token = token;
-      
-      return token;
     }
     
     return null;
@@ -102,7 +131,7 @@ class GitHubEnhanced extends EventEmitter {
    */
   async authenticate(retry = true) {
     try {
-      const token = this.options.token || config.github.token || process.env.GITHUB_TOKEN;
+      const token = this.options.token || config.github?.token || process.env.GITHUB_TOKEN;
       
       if (!token) {
         if (retry) {
@@ -119,7 +148,7 @@ class GitHubEnhanced extends EventEmitter {
       
       this.octokit = new Octokit({
         auth: token,
-        baseUrl: this.options.baseUrl || config.github.apiUrl
+        baseUrl: this.options.baseUrl || config.github?.apiUrl
       });
       
       // Verify authentication
@@ -338,60 +367,50 @@ class GitHubEnhanced extends EventEmitter {
       return null;
     } catch (error) {
       logger.error(`Failed to get file content for ${path} in ${owner}/${repo}: ${error.message}`);
-      return null;
+      throw error;
     }
   }
   
   /**
    * Add a PR to the analysis queue
    * @param {Object} prData - Pull request data
-   * @param {string} prData.owner - Repository owner
-   * @param {string} prData.repo - Repository name
-   * @param {number} prData.pull_number - Pull request number
-   * @param {boolean} [prData.autoMerge=false] - Whether to auto-merge if analysis passes
    * @returns {boolean} Success status
-   * @throws {Error} If required parameters are missing
    */
   addPrToAnalysisQueue(prData) {
-    try {
-      // Validate required fields
-      if (!prData.owner || !prData.repo || !prData.pull_number) {
-        throw new Error('Missing required PR data (owner, repo, pull_number)');
-      }
-      
-      // Check if PR is already in queue
-      const existingIndex = this.prAnalysisQueue.findIndex(item => 
-        item.owner === prData.owner && 
-        item.repo === prData.repo && 
-        item.pull_number === prData.pull_number
-      );
-      
-      if (existingIndex !== -1) {
-        // Update existing entry
-        this.prAnalysisQueue[existingIndex] = {
-          ...this.prAnalysisQueue[existingIndex],
-          ...prData,
-          updatedAt: new Date().toISOString()
-        };
-        
-        logger.info(`Updated PR in analysis queue: ${prData.owner}/${prData.repo}#${prData.pull_number}`);
-      } else {
-        // Add new entry
-        this.prAnalysisQueue.push({
-          ...prData,
-          status: 'pending',
-          addedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-        
-        logger.info(`Added PR to analysis queue: ${prData.owner}/${prData.repo}#${prData.pull_number}`);
-      }
-      
-      return true;
-    } catch (error) {
-      logger.logError('Failed to add PR to analysis queue', error);
-      throw error;
+    // Validate required fields
+    if (!prData.owner || !prData.repo || !prData.pull_number) {
+      throw new Error('Missing required PR data (owner, repo, pull_number)');
     }
+    
+    // Check if PR is already in queue
+    const existingIndex = this.prAnalysisQueue.findIndex(item => 
+      item.owner === prData.owner && 
+      item.repo === prData.repo && 
+      item.pull_number === prData.pull_number
+    );
+    
+    if (existingIndex !== -1) {
+      // Update existing entry
+      this.prAnalysisQueue[existingIndex] = {
+        ...this.prAnalysisQueue[existingIndex],
+        ...prData,
+        updatedAt: new Date().toISOString()
+      };
+      
+      logger.info(`Updated PR in analysis queue: ${prData.owner}/${prData.repo}#${prData.pull_number}`);
+    } else {
+      // Add new entry
+      this.prAnalysisQueue.push({
+        ...prData,
+        status: 'pending',
+        addedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      
+      logger.info(`Added PR to analysis queue: ${prData.owner}/${prData.repo}#${prData.pull_number}`);
+    }
+    
+    return true;
   }
   
   /**
@@ -402,7 +421,7 @@ class GitHubEnhanced extends EventEmitter {
     if (!this.authenticated) {
       const success = await this.authenticate();
       if (!success) {
-        logger.warn('Cannot process PR analysis queue: Not authenticated with GitHub');
+        logger.warn('Cannot process analysis queue: Not authenticated with GitHub');
         return { success: false, processed: 0, error: 'Not authenticated' };
       }
     }
@@ -434,17 +453,18 @@ class GitHubEnhanced extends EventEmitter {
         prData.processingStartedAt = new Date().toISOString();
         
         // Analyze PR
-        const analysisResult = await this.analyzePR(prData);
+        const analysis = await this.analyzePR(prData);
         
         // Update status
         prData.status = 'completed';
         prData.completedAt = new Date().toISOString();
-        prData.result = analysisResult;
+        prData.analysis = analysis;
         
         results.processed++;
         results.details.push({
           pr: `${prData.owner}/${prData.repo}#${prData.pull_number}`,
-          success: true
+          success: true,
+          autoMerge: analysis.auto_merge
         });
         
         logger.info(`Successfully analyzed PR: ${prData.owner}/${prData.repo}#${prData.pull_number}`);
@@ -474,16 +494,12 @@ class GitHubEnhanced extends EventEmitter {
   /**
    * Analyze a pull request
    * @param {Object} prData - Pull request data
-   * @param {string} prData.owner - Repository owner
-   * @param {string} prData.repo - Repository name
-   * @param {number} prData.pull_number - Pull request number
-   * @returns {Promise<Object>} Analysis result
-   * @throws {Error} If analysis fails
+   * @returns {Promise<Object>} Analysis results
    */
   async analyzePR(prData) {
     try {
       if (!this.authenticated) {
-        throw new Error('Not authenticated with GitHub');
+        await this.authenticate();
       }
       
       // Validate required fields
@@ -539,7 +555,7 @@ class GitHubEnhanced extends EventEmitter {
       
       return analysis;
     } catch (error) {
-      logger.logError('Failed to analyze PR', error);
+      logger.error('Failed to analyze PR', error);
       throw error;
     }
   }
@@ -649,7 +665,7 @@ class GitHubEnhanced extends EventEmitter {
       
       return true;
     } catch (error) {
-      logger.logError('Failed to add PR to merge queue', error);
+      logger.error('Failed to add PR to merge queue', error);
       throw error;
     }
   }
@@ -777,7 +793,7 @@ class GitHubEnhanced extends EventEmitter {
       
       return mergeResult;
     } catch (error) {
-      logger.logError('Failed to merge PR', error);
+      logger.error('Failed to merge PR', error);
       throw error;
     }
   }
