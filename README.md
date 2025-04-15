@@ -10,10 +10,11 @@ A multi-threaded project management tool that orchestrates automated AI-prompted
 - **Input Automation**: Capture cursor positions and automate text entry in external systems
 - **GitHub Integration**: Monitor repositories for changes, analyze PRs, and auto-merge where appropriate
 - **Concurrent Message Queue**: Process up to hundreds of concurrent actions with prioritization
+- **Webhook Module**: Robust webhook management system for handling GitHub events
 
 ## System Requirements
 
-- Node.js 14+
+- Node.js 16+
 - Windows, macOS, or Linux (with XClip for Linux clipboard support)
 - GitHub account with Personal Access Token (for repository access)
 
@@ -45,6 +46,36 @@ npm start
 For development with auto-reload:
 ```bash
 npm run dev
+```
+
+### Webhook Module
+
+The webhook module provides a robust system for handling GitHub webhook events. See [Webhook Module README](src/webhook/README-consolidated.md) for detailed documentation.
+
+Basic usage:
+
+```javascript
+const { createWebhookManager } = require('./src/webhook');
+
+// Create webhook manager
+const webhookManager = createWebhookManager({
+  port: 3000,
+  webhookSecret: 'your_webhook_secret',
+  githubToken: 'your_github_token',
+  useNgrok: true
+});
+
+// Register event handlers
+webhookManager.registerEventHandler('push', async (payload) => {
+  console.log(`Received push to ${payload.repository.full_name}`);
+});
+
+// Start the webhook manager
+webhookManager.start()
+  .then(serverInfo => {
+    console.log(`Webhook URL: ${serverInfo.url}`);
+    console.log(`Dashboard URL: ${serverInfo.dashboardUrl}`);
+  });
 ```
 
 ### Workflow Setup
@@ -86,6 +117,7 @@ The system implements a structured workflow for AI-prompted development:
 - `src/models/` - Core data models and business logic
 - `src/utils/` - Utility functions and helpers
 - `src/views/` - EJS templates for web interface
+- `src/webhook/` - Webhook management system
 - `src/server.js` - Express application
 
 ## Customization
@@ -152,4 +184,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
