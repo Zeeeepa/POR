@@ -55,6 +55,11 @@ app.get('/projects', async (req, res) => {
   res.render('projects', { projects });
 });
 
+// New route for creating a new project
+app.get('/projects/new', (req, res) => {
+  res.render('project-new');
+});
+
 app.get('/projects/:name', async (req, res) => {
   const project = deplaManager.getProject(req.params.name);
   if (project) {
@@ -66,11 +71,105 @@ app.get('/projects/:name', async (req, res) => {
 
 app.post('/projects/add', async (req, res) => {
   try {
-    const { repoUrl } = req.body;
-    const project = await deplaManager.addProject(repoUrl);
+    const { repoUrl, projectName, description, initializeTemplates } = req.body;
+    
+    // Validate repository URL
+    if (!repoUrl) {
+      throw new Error('Repository URL is required');
+    }
+    
+    // Add the project
+    const project = await deplaManager.addProject(repoUrl, projectName || '');
+    
+    // Update description if provided
+    if (description) {
+      project.config.description = description;
+      await fs.writeJson(path.join(project.path, 'project.json'), project.config, { spaces: 2 });
+    }
+    
+    // Initialize templates if requested
+    if (initializeTemplates === 'on') {
+      await deplaManager.multiProjectManager.initializeProject(
+        deplaManager.multiProjectManager.getAllProjectTabs().find(tab => tab.projectName === project.config.name).id
+      );
+    }
+    
     res.redirect(`/projects/${project.config.name}`);
   } catch (error) {
-    res.status(400).send(error.message);
+    logger.error(`Failed to add project: ${error.message}`);
+    res.status(400).render('error', { 
+      title: 'Project Creation Failed',
+      message: error.message,
+      backUrl: '/projects/new'
+    });
+  }
+});
+
+// New route for creating an empty project
+app.post('/projects/create-empty', async (req, res) => {
+  try {
+    const { projectName, description } = req.body;
+    
+    if (!projectName) {
+      throw new Error('Project name is required');
+    }
+    
+    // Create empty project
+    const project = await deplaManager.baseManager.createProject(projectName, { description });
+    
+    // Add to multi-project manager
+    await deplaManager.multiProjectManager.addProjectTab({
+      projectName: project.config.name,
+      repoUrl: ''
+    });
+    
+    res.redirect(`/projects/${project.config.name}`);
+  } catch (error) {
+    logger.error(`Failed to create empty project: ${error.message}`);
+    res.status(400).render('error', { 
+      title: 'Project Creation Failed',
+      message: error.message,
+      backUrl: '/projects/new'
+    });
+  }
+});
+
+// New route for batch import
+app.get('/projects/batch-import', (req, res) => {
+  res.render('batch-import');
+});
+
+app.post('/projects/batch-import', async (req, res) => {
+  try {
+    const { repoUrls } = req.body;
+    
+    if (!repoUrls) {
+      throw new Error('Repository URLs are required');
+    }
+    
+    // Split by newline and filter empty lines
+    const urls = repoUrls.split('\n')
+      .map(url => url.trim())
+      .filter(url => url.length > 0);
+    
+    if (urls.length === 0) {
+      throw new Error('No valid repository URLs provided');
+    }
+    
+    // Prepare project data for batch import
+    const projectsData = urls.map(url => ({ repoUrl: url }));
+    
+    // Add projects in batch
+    const results = await deplaManager.multiProjectManager.addMultipleProjectTabs(projectsData);
+    
+    res.redirect('/projects');
+  } catch (error) {
+    logger.error(`Failed to batch import projects: ${error.message}`);
+    res.status(400).render('error', { 
+      title: 'Batch Import Failed',
+      message: error.message,
+      backUrl: '/projects/batch-import'
+    });
   }
 });
 

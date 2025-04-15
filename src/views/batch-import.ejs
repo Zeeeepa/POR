@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Import - Depla Project Manager</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <style>
+    .navbar-brand i {
+      margin-right: 8px;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #6f42c1 0%, #0275d8 100%);
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">
+        <i class="bi bi-code-square"></i>Depla Project Manager
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/">
+              <i class="bi bi-house-door"></i> Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="/projects">
+              <i class="bi bi-folder"></i> Projects
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Section -->
+  <header class="page-header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1><i class="bi bi-cloud-download"></i> Batch Import</h1>
+          <p class="lead mb-0">Import multiple projects at once</p>
+        </div>
+        <a href="/projects" class="btn btn-light">
+          <i class="bi bi-arrow-left"></i> Back to Projects
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-4">Import Multiple Repositories</h5>
+            
+            <form action="/projects/batch-import" method="POST">
+              <div class="mb-3">
+                <label for="repoUrls" class="form-label">Repository URLs</label>
+                <textarea class="form-control" id="repoUrls" name="repoUrls" rows="10" 
+                          placeholder="Enter one repository URL per line, e.g.:&#10;https://github.com/username/repo1&#10;https://github.com/username/repo2&#10;https://github.com/username/repo3" required></textarea>
+                <div class="form-text">Enter one repository URL per line</div>
+              </div>
+              
+              <div class="form-check mb-4">
+                <input class="form-check-input" type="checkbox" id="initializeAll" name="initializeAll" checked>
+                <label class="form-check-label" for="initializeAll">
+                  Initialize all projects with template files
+                </label>
+                <div class="form-text">Automatically add template files required for automation to all imported projects</div>
+              </div>
+              
+              <div class="d-grid">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-cloud-download"></i> Import Projects
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <div class="card mt-4 shadow-sm">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">Import from GitHub Organization</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted">Import all repositories from a GitHub organization</p>
+            <form action="/projects/import-from-org" method="POST">
+              <div class="mb-3">
+                <label for="orgName" class="form-label">Organization Name</label>
+                <input type="text" class="form-control" id="orgName" name="orgName" 
+                       placeholder="e.g. my-organization" required>
+              </div>
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="includePrivate" name="includePrivate">
+                  <label class="form-check-label" for="includePrivate">
+                    Include private repositories
+                  </label>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-outline-secondary">
+                <i class="bi bi-github"></i> Import from Organization
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-dark text-center text-white py-4 mt-5">
+    <div class="container">
+      <p class="mb-0">Depla Project Manager</p>
+      <small class="d-block text-muted">Version 1.0.0</small>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
