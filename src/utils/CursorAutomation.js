@@ -6,6 +6,8 @@
 const robotjs = require('robotjs');
 const logger = require('./logger');
 const config = require('./config');
+const fs = require('fs-extra');
+const path = require('path');
 
 class CursorAutomation {
   /**
@@ -16,6 +18,86 @@ class CursorAutomation {
   constructor(options = {}) {
     this.positions = {};
     this.defaultDelay = options.defaultDelay || 10; // ms between keystrokes
+    this.positionsFile = path.join(process.cwd(), 'cursor_positions.json');
+    
+    // Load saved positions
+    this.loadPositions();
+  }
+
+  /**
+   * Load saved positions from file
+   * @returns {Object} Loaded positions
+   */
+  loadPositions() {
+    try {
+      if (fs.existsSync(this.positionsFile)) {
+        const data = fs.readFileSync(this.positionsFile, 'utf8');
+        this.positions = JSON.parse(data);
+        logger.info(`Loaded ${Object.keys(this.positions).length} cursor positions`);
+      } else {
+        logger.info('No saved cursor positions found');
+        this.positions = {};
+      }
+      return this.positions;
+    } catch (error) {
+      logger.error(`Failed to load cursor positions: ${error.message}`);
+      this.positions = {};
+      return {};
+    }
+  }
+  
+  /**
+   * Save positions to file
+   * @returns {boolean} Success status
+   */
+  savePositionsToFile() {
+    try {
+      fs.writeFileSync(this.positionsFile, JSON.stringify(this.positions, null, 2));
+      logger.info(`Saved ${Object.keys(this.positions).length} cursor positions`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to save cursor positions: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Save a cursor position
+   * @param {string} name - Name for this position
+   * @param {Object} position - Position object with x and y coordinates
+   * @returns {Object} Saved position
+   * @throws {Error} If name or position is invalid
+   */
+  savePosition(name, position) {
+    try {
+      if (!name || typeof name !== 'string') {
+        throw new Error('Position name must be a non-empty string');
+      }
+      
+      if (!position || typeof position !== 'object' || 
+          typeof position.x !== 'number' || typeof position.y !== 'number') {
+        throw new Error('Position must be an object with numeric x and y coordinates');
+      }
+      
+      const savedPosition = {
+        name,
+        x: position.x,
+        y: position.y,
+        capturedAt: new Date().toISOString()
+      };
+      
+      // Save position
+      this.positions[name] = savedPosition;
+      
+      // Save to file
+      this.savePositionsToFile();
+      
+      logger.info(`Saved cursor position "${name}" at x:${position.x}, y:${position.y}`);
+      return savedPosition;
+    } catch (error) {
+      logger.error(`Failed to save cursor position: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -32,20 +114,10 @@ class CursorAutomation {
       
       const mouse = robotjs.getMousePos();
       
-      const position = {
-        name,
-        x: mouse.x,
-        y: mouse.y,
-        capturedAt: new Date().toISOString()
-      };
-      
       // Save position
-      this.positions[name] = position;
-      
-      logger.info(`Captured cursor position "${name}" at x:${mouse.x}, y:${mouse.y}`);
-      return position;
+      return this.savePosition(name, { x: mouse.x, y: mouse.y });
     } catch (error) {
-      logger.logError('Failed to capture cursor position', error);
+      logger.error(`Failed to capture cursor position: ${error.message}`);
       throw error;
     }
   }
@@ -96,7 +168,7 @@ class CursorAutomation {
       logger.info(`Moved cursor to position "${positionName}" (x:${position.x}, y:${position.y})`);
       return true;
     } catch (error) {
-      logger.logError('Failed to move to position', error);
+      logger.error(`Failed to move to position: ${error.message}`);
       throw error;
     }
   }
@@ -128,7 +200,7 @@ class CursorAutomation {
       logger.info(`Clicked at position "${positionName}" (button: ${button}, double: ${doubleClick})`);
       return true;
     } catch (error) {
-      logger.logError('Failed to click at position', error);
+      logger.error(`Failed to click at position: ${error.message}`);
       throw error;
     }
   }
@@ -163,7 +235,7 @@ class CursorAutomation {
       logger.info(`Typed text (${text.length} characters)`);
       return true;
     } catch (error) {
-      logger.logError('Failed to type text', error);
+      logger.error(`Failed to type text: ${error.message}`);
       throw error;
     }
   }
@@ -195,7 +267,7 @@ class CursorAutomation {
       logger.info(`Sent text to position "${positionName}" (${text.length} characters)`);
       return true;
     } catch (error) {
-      logger.logError('Failed to send text to position', error);
+      logger.error(`Failed to send text to position: ${error.message}`);
       throw error;
     }
   }
@@ -218,7 +290,7 @@ class CursorAutomation {
       logger.info(`Pressed keys: ${keys.join('+')}`);
       return true;
     } catch (error) {
-      logger.logError('Failed to press keys', error);
+      logger.error(`Failed to press keys: ${error.message}`);
       throw error;
     }
   }
@@ -247,7 +319,7 @@ class CursorAutomation {
       logger.info(`Cleared text field at position "${positionName}"`);
       return true;
     } catch (error) {
-      logger.logError('Failed to clear text field', error);
+      logger.error(`Failed to clear text field: ${error.message}`);
       throw error;
     }
   }

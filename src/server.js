@@ -11,6 +11,7 @@ const framework = require('./framework');
 const logger = require('./utils/logger');
 // Import DeplaEnhanced directly to avoid circular dependency
 const DeplaEnhanced = require('./models/DeplaEnhanced');
+const CursorAutomation = require('./utils/CursorAutomation');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -155,9 +156,119 @@ app.get('/settings', async (req, res) => {
   res.render('settings', { config: deplaManager.config });
 });
 
-app.post('/settings', async (req, res) => {
+app.post('/settings/update', async (req, res) => {
   const newConfig = req.body;
-  deplaManager.updateConfig(newConfig);
+  deplaManager.updateConfig({ ...deplaManager.config, ...newConfig });
+  res.redirect('/settings');
+});
+
+app.post('/settings/github', async (req, res) => {
+  const githubConfig = req.body;
+  deplaManager.updateConfig({ 
+    ...deplaManager.config, 
+    github: { 
+      ...deplaManager.config.github,
+      token: githubConfig.githubToken || deplaManager.config.github?.token,
+      username: githubConfig.githubUsername,
+      autoCreateRepo: !!githubConfig.autoCreateRepo
+    } 
+  });
+  res.redirect('/settings');
+});
+
+// New route for cursor position capture
+app.post('/settings/cursor-position', async (req, res) => {
+  try {
+    const { position } = req.body;
+    if (!position) {
+      return res.status(400).json({ success: false, error: 'Position is required' });
+    }
+    
+    // Save position to config
+    deplaManager.updateConfig({ 
+      ...deplaManager.config, 
+      cursorPosition: position 
+    });
+    
+    // Save position to CursorAutomation
+    const [x, y] = position.split(',').map(Number);
+    CursorAutomation.savePosition('default', { x, y });
+    
+    res.json({ success: true, position });
+  } catch (error) {
+    logger.error(`Failed to save cursor position: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// New route for prompt automation settings
+app.post('/settings/ai', async (req, res) => {
+  try {
+    const { cursorPosition, promptDelay, enablePromptAutomation } = req.body;
+    
+    deplaManager.updateConfig({ 
+      ...deplaManager.config, 
+      cursorPosition,
+      promptDelay: parseInt(promptDelay, 10) || 2000,
+      enablePromptAutomation: !!enablePromptAutomation
+    });
+    
+    res.redirect('/settings');
+  } catch (error) {
+    logger.error(`Failed to save prompt settings: ${error.message}`);
+    res.status(500).send(`Error: ${error.message}`);
+  }
+});
+
+// New route for GitHub automation settings
+app.post('/settings/github-automation', async (req, res) => {
+  try {
+    const { enableAutoMerge, autoMergeKeywords, pollingInterval } = req.body;
+    
+    deplaManager.updateConfig({ 
+      ...deplaManager.config, 
+      enableAutoMerge: !!enableAutoMerge,
+      autoMergeKeywords: autoMergeKeywords || '',
+      pollingInterval: parseInt(pollingInterval, 10) || 60,
+      automation: {
+        ...deplaManager.config.automation,
+        enabled: !!enableAutoMerge,
+        interval: (parseInt(pollingInterval, 10) || 60) * 1000
+      }
+    });
+    
+    // Update automation status
+    if (enableAutoMerge) {
+      deplaManager.setupAutomation();
+    } else {
+      deplaManager.stopAutomation();
+    }
+    
+    res.redirect('/settings');
+  } catch (error) {
+    logger.error(`Failed to save GitHub automation settings: ${error.message}`);
+    res.status(500).send(`Error: ${error.message}`);
+  }
+});
+
+app.post('/settings/advanced', async (req, res) => {
+  const advancedConfig = req.body;
+  deplaManager.updateConfig({ 
+    ...deplaManager.config, 
+    logLevel: advancedConfig.logLevel,
+    port: parseInt(advancedConfig.port, 10) || 3000,
+    enableWebhooks: !!advancedConfig.enableWebhooks
+  });
+  res.redirect('/settings');
+});
+
+app.get('/settings/export', async (req, res) => {
+  res.json(deplaManager.config);
+});
+
+app.post('/settings/reset', async (req, res) => {
+  deplaManager.configManager.resetConfig();
+  deplaManager.config = deplaManager.configManager.getConfig();
   res.redirect('/settings');
 });
 
