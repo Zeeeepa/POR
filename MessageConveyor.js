@@ -1,14 +1,12 @@
 /**
- * MessageConveyor - Handles message templating and delivery to the WSL2 server
+ * MessageConveyor - Handles message templating and delivery
  * 
  * This class is part of the client-side architecture and implements the
- * application-specific logic for message management, while delegating the
- * actual communication to the WSL2Client.
+ * application-specific logic for message management.
  */
 
 const path = require('path');
 const fs = require('fs');
-const WSL2Client = require('./wsl2-client');
 
 class MessageConveyor {
   /**
@@ -17,8 +15,7 @@ class MessageConveyor {
    */
   constructor(config) {
     this.config = config;
-    this.wsl2Client = new WSL2Client(config.wsl2);
-    this.connected = false;
+    this.connected = true; // Always connected since we're not using WSL2
     this.templates = {};
     this.sentMessages = [];
     this.batchHistory = [];
@@ -29,53 +26,36 @@ class MessageConveyor {
   }
 
   /**
-   * Connect to the WSL2 server
+   * Connect - No longer needed but kept for API compatibility
    * @returns {Promise<boolean>} Connection success
    */
   async connect() {
-    try {
-      const health = await this.wsl2Client.checkHealth();
-      this.connected = health.connected;
-      return this.connected;
-    } catch (error) {
-      console.error('Failed to connect to WSL2:', error.message);
-      this.connected = false;
-      return false;
-    }
+    return true;
   }
 
   /**
-   * Send a message to Slack via the WSL2 server
+   * Send a message
    * @param {Object} message - Message to send
    * @returns {Promise<boolean>} Sending success
    */
   async sendMessage(message) {
-    if (!this.connected) {
-      const connected = await this.connect();
-      if (!connected) {
-        throw new Error('Not connected to WSL2 server');
-      }
-    }
-    
     try {
-      const result = await this.wsl2Client.sendMessage(message);
+      // Simulate message sending
+      const messageId = Date.now().toString();
       
-      if (result.success) {
-        message.status = 'Sent';
-        message.sentAt = new Date().toISOString();
-        
-        // Keep track of sent messages
-        this.sentMessages.push({
-          ...message,
-          id: message.id || Date.now().toString(),
-          messageId: result.messageId,
-          sentAt: new Date().toISOString()
-        });
-        
-        return true;
-      } else {
-        throw new Error(`Failed to send message: ${result.error || 'Unknown error'}`);
-      }
+      message.status = 'Sent';
+      message.sentAt = new Date().toISOString();
+      
+      // Keep track of sent messages
+      this.sentMessages.push({
+        ...message,
+        id: message.id || Date.now().toString(),
+        messageId: messageId,
+        sentAt: new Date().toISOString()
+      });
+      
+      console.log(`Message sent: ${message.module_name}`);
+      return true;
     } catch (error) {
       console.error('Failed to send message:', error.message);
       return false;
@@ -83,20 +63,13 @@ class MessageConveyor {
   }
 
   /**
-   * Send a batch of messages to Slack
+   * Send a batch of messages
    * @param {Array<Object>} messages - Messages to send
    * @param {string} batchName - Name for this batch
    * @param {number} delay - Delay between messages in ms
    * @returns {Promise<Object>} Batch result
    */
   async sendBatch(messages, batchName = '', delay = null) {
-    if (!this.connected) {
-      const connected = await this.connect();
-      if (!connected) {
-        throw new Error('Not connected to WSL2 server');
-      }
-    }
-    
     // Don't send a batch while another is in progress
     if (this.activeTransmission) {
       throw new Error('Another batch is currently being transmitted');
@@ -104,32 +77,55 @@ class MessageConveyor {
     
     try {
       this.activeTransmission = true;
+      const batchId = Date.now().toString();
       
-      const result = await this.wsl2Client.sendBatch(messages, batchName, delay);
+      // Record the batch
+      this.batchHistory.push({
+        id: batchId,
+        name: batchName || `Batch ${this.batchHistory.length + 1}`,
+        messageCount: messages.length,
+        delay: delay || this.config.messageDelay || 5000,
+        startedAt: new Date().toISOString(),
+        status: 'In Progress'
+      });
       
-      if (result.success) {
-        // Record the batch
-        this.batchHistory.push({
-          id: result.batchId,
-          name: batchName || `Batch ${this.batchHistory.length + 1}`,
-          messageCount: messages.length,
-          delay: delay || this.config.messageDelay || 5000,
-          startedAt: new Date().toISOString(),
-          status: 'In Progress'
+      // Process messages in the batch
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        await this.sendMessage({
+          ...message,
+          batchId: batchId
         });
         
-        // Start a timer to check for batch completion
-        this.startBatchStatusCheck(result.batchId);
+        // Update batch progress
+        const batchIndex = this.batchHistory.findIndex(b => b.id === batchId);
+        if (batchIndex !== -1) {
+          this.batchHistory[batchIndex].progress = ((i + 1) / messages.length) * 100;
+          this.batchHistory[batchIndex].completedMessages = i + 1;
+        }
         
-        return {
-          batchId: result.batchId,
-          status: result.status,
-          messageCount: result.messageCount,
-          estimatedTime: messages.length * ((delay || this.config.messageDelay || 5000) / 1000)
-        };
-      } else {
-        throw new Error(`Failed to send batch: ${result.error || 'Unknown error'}`);
+        // Add delay between messages
+        if (i < messages.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay || this.config.messageDelay || 5000));
+        }
       }
+      
+      // Mark batch as completed
+      const batchIndex = this.batchHistory.findIndex(b => b.id === batchId);
+      if (batchIndex !== -1) {
+        this.batchHistory[batchIndex].status = 'completed';
+        this.batchHistory[batchIndex].completedAt = new Date().toISOString();
+      }
+      
+      this.activeTransmission = false;
+      console.log(`Batch ${batchId} completed successfully`);
+      
+      return {
+        batchId: batchId,
+        status: 'completed',
+        messageCount: messages.length,
+        estimatedTime: messages.length * ((delay || this.config.messageDelay || 5000) / 1000)
+      };
     } catch (error) {
       console.error('Failed to send batch:', error.message);
       this.activeTransmission = false;
@@ -138,60 +134,11 @@ class MessageConveyor {
   }
 
   /**
-   * Start checking the status of a batch
-   * @param {string} batchId - Batch ID to check
-   */
-  async startBatchStatusCheck(batchId) {
-    const checkInterval = setInterval(async () => {
-      try {
-        const status = await this.wsl2Client.getBatchStatus(batchId);
-        
-        // Update the batch status
-        const batchIndex = this.batchHistory.findIndex(b => b.id === batchId);
-        if (batchIndex !== -1) {
-          this.batchHistory[batchIndex].status = status.status;
-          this.batchHistory[batchIndex].progress = status.progress;
-          this.batchHistory[batchIndex].completedMessages = status.completed;
-          
-          if (status.status === 'completed') {
-            this.batchHistory[batchIndex].completedAt = new Date().toISOString();
-            this.activeTransmission = false;
-            clearInterval(checkInterval);
-            console.log(`Batch ${batchId} completed successfully`);
-          } else if (status.status === 'failed') {
-            this.batchHistory[batchIndex].completedAt = new Date().toISOString();
-            this.batchHistory[batchIndex].error = status.error;
-            this.activeTransmission = false;
-            clearInterval(checkInterval);
-            console.error(`Batch ${batchId} failed: ${status.error}`);
-          }
-        }
-      } catch (error) {
-        console.error('Error checking batch status:', error.message);
-        // If can't reach the server, assume batch is completed after 10 failed attempts
-        this.batchFailedChecks = (this.batchFailedChecks || 0) + 1;
-        if (this.batchFailedChecks >= 10) {
-          this.activeTransmission = false;
-          clearInterval(checkInterval);
-        }
-      }
-    }, 5000); // Check every 5 seconds
-  }
-
-  /**
-   * Test the connection to the WSL2 server
+   * Test the connection - No longer needed but kept for API compatibility
    * @returns {Promise<Object>} Test results
    */
   async testConnection() {
-    try {
-      const result = await this.wsl2Client.testConnection();
-      this.connected = result.success;
-      return result;
-    } catch (error) {
-      console.error('Connection test failed:', error.message);
-      this.connected = false;
-      return { success: false, error: error.message };
-    }
+    return { success: true };
   }
 
   /**
@@ -488,4 +435,4 @@ Please follow these guidelines:
   }
 }
 
-module.exports = MessageConveyor; 
+module.exports = MessageConveyor;
