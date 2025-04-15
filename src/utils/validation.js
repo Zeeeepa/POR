@@ -37,12 +37,22 @@ const validation = {
    * @param {Object} [options={}] - Validation options
    * @param {number} [options.min] - Minimum allowed value
    * @param {number} [options.max] - Maximum allowed value
+   * @param {boolean} [options.allowInfinity=false] - Whether to allow Infinity values
+   * @param {boolean} [options.allowNaN=false] - Whether to allow NaN values
    * @returns {boolean} Whether the value is valid
    * @throws {Error} If validation fails
    */
   isNumber(value, paramName, options = {}) {
-    if (typeof value !== 'number' || isNaN(value)) {
+    if (typeof value !== 'number') {
       throw new Error(`${paramName} must be a number`);
+    }
+    
+    if (!options.allowNaN && isNaN(value)) {
+      throw new Error(`${paramName} cannot be NaN`);
+    }
+    
+    if (!options.allowInfinity && !isFinite(value)) {
+      throw new Error(`${paramName} cannot be Infinity or -Infinity`);
     }
     
     if (options.min !== undefined && value < options.min) {
@@ -79,12 +89,19 @@ const validation = {
    * @param {number} [options.minLength] - Minimum array length
    * @param {number} [options.maxLength] - Maximum array length
    * @param {Function} [options.itemValidator] - Function to validate each item
+   * @param {boolean} [options.allowEmpty=true] - Whether to allow empty arrays
    * @returns {boolean} Whether the value is valid
    * @throws {Error} If validation fails
    */
   isArray(value, paramName, options = {}) {
     if (!Array.isArray(value)) {
       throw new Error(`${paramName} must be an array`);
+    }
+    
+    const { allowEmpty = true } = options;
+    
+    if (!allowEmpty && value.length === 0) {
+      throw new Error(`${paramName} cannot be empty`);
     }
     
     if (options.minLength !== undefined && value.length < options.minLength) {
@@ -114,11 +131,22 @@ const validation = {
    * @param {string} paramName - Parameter name for error messages
    * @param {Object} [options={}] - Validation options
    * @param {string[]} [options.requiredProps] - Required properties
+   * @param {Object} [options.propValidators] - Validators for specific properties
+   * @param {boolean} [options.allowNull=false] - Whether to allow null values
    * @returns {boolean} Whether the value is valid
    * @throws {Error} If validation fails
    */
   isObject(value, paramName, options = {}) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    const { allowNull = false } = options;
+    
+    if (value === null) {
+      if (allowNull) {
+        return true;
+      }
+      throw new Error(`${paramName} cannot be null`);
+    }
+    
+    if (typeof value !== 'object' || Array.isArray(value)) {
       throw new Error(`${paramName} must be an object`);
     }
     
@@ -130,6 +158,18 @@ const validation = {
       }
     }
     
+    if (options.propValidators && typeof options.propValidators === 'object') {
+      for (const [prop, validator] of Object.entries(options.propValidators)) {
+        if (value[prop] !== undefined && typeof validator === 'function') {
+          try {
+            validator(value[prop], `${paramName}.${prop}`);
+          } catch (error) {
+            throw new Error(`Invalid property '${prop}' in ${paramName}: ${error.message}`);
+          }
+        }
+      }
+    }
+    
     return true;
   },
   
@@ -137,15 +177,28 @@ const validation = {
    * Validate that a parameter is a valid URL
    * @param {any} value - Value to validate
    * @param {string} paramName - Parameter name for error messages
+   * @param {Object} [options={}] - Validation options
+   * @param {string[]} [options.protocols] - Allowed protocols (e.g., ['http', 'https'])
    * @returns {boolean} Whether the value is valid
    * @throws {Error} If validation fails
    */
-  isUrl(value, paramName) {
+  isUrl(value, paramName, options = {}) {
     try {
       this.isString(value, paramName);
-      new URL(value);
+      const url = new URL(value);
+      
+      if (options.protocols && options.protocols.length > 0) {
+        const protocol = url.protocol.replace(':', '');
+        if (!options.protocols.includes(protocol)) {
+          throw new Error(`${paramName} must use one of these protocols: ${options.protocols.join(', ')}`);
+        }
+      }
+      
       return true;
     } catch (error) {
+      if (error.message.includes('protocols')) {
+        throw error;
+      }
       throw new Error(`${paramName} must be a valid URL`);
     }
   },
@@ -189,6 +242,10 @@ const validation = {
    * @throws {Error} If validation fails
    */
   isOneOf(value, paramName, allowedValues) {
+    if (!Array.isArray(allowedValues) || allowedValues.length === 0) {
+      throw new Error('allowedValues must be a non-empty array');
+    }
+    
     if (!allowedValues.includes(value)) {
       throw new Error(`${paramName} must be one of: ${allowedValues.join(', ')}`);
     }
@@ -206,6 +263,47 @@ const validation = {
   exists(value, paramName) {
     if (value === undefined || value === null) {
       throw new Error(`${paramName} is required`);
+    }
+    
+    return true;
+  },
+  
+  /**
+   * Validate that a parameter is a valid date
+   * @param {any} value - Value to validate
+   * @param {string} paramName - Parameter name for error messages
+   * @param {Object} [options={}] - Validation options
+   * @param {Date} [options.min] - Minimum allowed date
+   * @param {Date} [options.max] - Maximum allowed date
+   * @returns {boolean} Whether the value is valid
+   * @throws {Error} If validation fails
+   */
+  isDate(value, paramName, options = {}) {
+    if (!(value instanceof Date) || isNaN(value.getTime())) {
+      throw new Error(`${paramName} must be a valid Date object`);
+    }
+    
+    if (options.min instanceof Date && !isNaN(options.min.getTime()) && value < options.min) {
+      throw new Error(`${paramName} must be on or after ${options.min.toISOString()}`);
+    }
+    
+    if (options.max instanceof Date && !isNaN(options.max.getTime()) && value > options.max) {
+      throw new Error(`${paramName} must be on or before ${options.max.toISOString()}`);
+    }
+    
+    return true;
+  },
+  
+  /**
+   * Validate that a parameter is a valid function
+   * @param {any} value - Value to validate
+   * @param {string} paramName - Parameter name for error messages
+   * @returns {boolean} Whether the value is valid
+   * @throws {Error} If validation fails
+   */
+  isFunction(value, paramName) {
+    if (typeof value !== 'function') {
+      throw new Error(`${paramName} must be a function`);
     }
     
     return true;
