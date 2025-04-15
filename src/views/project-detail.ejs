@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= project.config.name %> - Depla Project Manager</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <style>
+    .navbar-brand i {
+      margin-right: 8px;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #6f42c1 0%, #0275d8 100%);
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+    .progress {
+      height: 10px;
+    }
+    .phase-card {
+      margin-bottom: 1.5rem;
+      border-left: 4px solid #6f42c1;
+    }
+    .component-item {
+      padding: 0.75rem;
+      border-bottom: 1px solid #eee;
+      transition: background-color 0.2s;
+    }
+    .component-item:hover {
+      background-color: rgba(0,123,255,0.05);
+    }
+    .component-item:last-child {
+      border-bottom: none;
+    }
+    .component-complete {
+      text-decoration: line-through;
+      color: #6c757d;
+    }
+    .nav-tabs .nav-link.active {
+      border-bottom: 3px solid #0d6efd;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">
+        <i class="bi bi-code-square"></i>Depla Project Manager
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/">
+              <i class="bi bi-house-door"></i> Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/projects">
+              <i class="bi bi-folder"></i> Projects
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Section -->
+  <header class="page-header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1><%= project.config.name %></h1>
+          <p class="lead mb-0"><%= project.config.description || 'No description' %></p>
+        </div>
+        <div>
+          <a href="/projects/<%= project.config.name %>/edit" class="btn btn-light me-2">
+            <i class="bi bi-pencil"></i> Edit
+          </a>
+          <div class="dropdown d-inline-block">
+            <button class="btn btn-light dropdown-toggle" type="button" id="projectActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i> Actions
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="projectActionsDropdown">
+              <li><a class="dropdown-item" href="/projects/<%= project.config.name %>/generate-steps">
+                <i class="bi bi-list-check"></i> Generate Steps
+              </a></li>
+              <li><a class="dropdown-item" href="/projects/<%= project.config.name %>/requirements">
+                <i class="bi bi-file-text"></i> Edit Requirements
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="#" onclick="confirmDelete('<%= project.config.name %>')">
+                <i class="bi bi-trash"></i> Delete Project
+              </a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Project Info -->
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <!-- Project Tabs -->
+        <ul class="nav nav-tabs mb-4">
+          <li class="nav-item">
+            <a class="nav-link active" href="/projects/<%= project.config.name %>">
+              <i class="bi bi-kanban"></i> Implementation Plan
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/projects/<%= project.config.name %>/requirements">
+              <i class="bi bi-file-text"></i> Requirements
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/projects/<%= project.config.name %>/messages">
+              <i class="bi bi-chat-dots"></i> Messages
+            </a>
+          </li>
+        </ul>
+
+        <!-- Implementation Plan -->
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-list-check"></i> Implementation Plan</h2>
+            <% if (!project.phases || project.phases.length === 0) { %>
+              <a href="/projects/<%= project.config.name %>/generate-steps" class="btn btn-primary btn-sm">
+                <i class="bi bi-magic"></i> Generate Steps
+              </a>
+            <% } %>
+          </div>
+
+          <% if (!project.phases || project.phases.length === 0) { %>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> No implementation plan has been generated yet. 
+              Click "Generate Steps" to create an implementation plan based on your requirements.
+            </div>
+          <% } else { %>
+            <!-- Progress Bar -->
+            <div class="mb-4">
+              <div class="d-flex justify-content-between mb-1">
+                <span>Overall Progress</span>
+                <span><%= project.config.completedSteps || 0 %>/<%= project.config.totalSteps %> 
+                  (<%= Math.round((project.config.completedSteps || 0) / project.config.totalSteps * 100) %>%)</span>
+              </div>
+              <div class="progress">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: <%= Math.round((project.config.completedSteps || 0) / project.config.totalSteps * 100) %>%" 
+                     aria-valuenow="<%= Math.round((project.config.completedSteps || 0) / project.config.totalSteps * 100) %>" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"></div>
+              </div>
+            </div>
+
+            <!-- Phases and Components -->
+            <div class="accordion" id="phasesAccordion">
+              <% project.phases.forEach((phase, phaseIndex) => { %>
+                <div class="accordion-item phase-card">
+                  <h2 class="accordion-header" id="heading<%= phaseIndex %>">
+                    <button class="accordion-button <%= phaseIndex > 0 ? 'collapsed' : '' %>" type="button" 
+                            data-bs-toggle="collapse" data-bs-target="#collapse<%= phaseIndex %>" 
+                            aria-expanded="<%= phaseIndex === 0 ? 'true' : 'false' %>" 
+                            aria-controls="collapse<%= phaseIndex %>">
+                      <div class="d-flex justify-content-between align-items-center w-100">
+                        <span>Phase <%= phaseIndex + 1 %>: <%= phase.name %></span>
+                        <span class="badge bg-primary ms-2">
+                          <%= phase.components.filter(c => c.isComplete).length %>/<%= phase.components.length %>
+                        </span>
+                      </div>
+                    </button>
+                  </h2>
+                  <div id="collapse<%= phaseIndex %>" class="accordion-collapse collapse <%= phaseIndex === 0 ? 'show' : '' %>" 
+                       aria-labelledby="heading<%= phaseIndex %>" data-bs-parent="#phasesAccordion">
+                    <div class="accordion-body p-0">
+                      <div class="list-group list-group-flush">
+                        <% phase.components.forEach((component, componentIndex) => { %>
+                          <div class="component-item d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                              <input class="form-check-input" type="checkbox" 
+                                     id="component<%= phaseIndex %>_<%= componentIndex %>" 
+                                     <%= component.isComplete ? 'checked' : '' %>
+                                     onchange="toggleComponentStatus('<%= project.config.name %>', <%= phaseIndex %>, <%= componentIndex %>, this.checked)">
+                              <label class="form-check-label <%= component.isComplete ? 'component-complete' : '' %>" 
+                                     for="component<%= phaseIndex %>_<%= componentIndex %>">
+                                <%= component.name %>
+                              </label>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="showComponentDetails('<%= component.name %>', `<%= component.description.replace(/`/g, '\\`').replace(/\n/g, '\\n') %>`)">
+                              <i class="bi bi-info-circle"></i>
+                            </button>
+                          </div>
+                        <% }) %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <!-- Project Details Sidebar -->
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Project Details</h5>
+          </div>
+          <div class="card-body">
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-calendar"></i> Created</span>
+                <span><%= new Date(project.config.createdAt).toLocaleDateString() %></span>
+              </li>
+              <% if (project.config.repository) { %>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-git"></i> Repository</span>
+                  <a href="<%= project.config.repository.startsWith('http') ? project.config.repository : 'https://github.com/' + project.config.repository %>" 
+                     target="_blank" class="text-truncate" style="max-width: 150px;">
+                    <%= project.config.repository %>
+                  </a>
+                </li>
+              <% } %>
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-folder"></i> Path</span>
+                <span class="text-truncate" style="max-width: 150px;" title="<%= project.path %>">
+                  <%= project.path %>
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+              <a href="/projects/<%= project.config.name %>/generate-steps" class="list-group-item list-group-item-action">
+                <i class="bi bi-list-check"></i> Generate Implementation Steps
+              </a>
+              <a href="/projects/<%= project.config.name %>/requirements" class="list-group-item list-group-item-action">
+                <i class="bi bi-file-text"></i> Edit Requirements
+              </a>
+              <a href="/projects/<%= project.config.name %>/messages" class="list-group-item list-group-item-action">
+                <i class="bi bi-chat-dots"></i> View Messages
+              </a>
+              <a href="/projects/<%= project.config.name %>/edit" class="list-group-item list-group-item-action">
+                <i class="bi bi-pencil"></i> Edit Project Settings
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Component Details Modal -->
+  <div class="modal fade" id="componentDetailsModal" tabindex="-1" aria-labelledby="componentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="componentDetailsModalLabel">Component Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <h4 id="componentName"></h4>
+          <div id="componentDescription" class="mt-3"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-dark text-center text-white py-4 mt-5">
+    <div class="container">
+      <p class="mb-0">Depla Project Manager</p>
+      <small class="d-block text-muted">Version 1.0.0</small>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    function confirmDelete(projectName) {
+      if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
+        window.location.href = `/projects/${projectName}/delete`;
+      }
+    }
+    
+    function toggleComponentStatus(projectName, phaseIndex, componentIndex, isComplete) {
+      fetch(`/projects/${projectName}/toggle-component`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phaseIndex,
+          componentIndex,
+          isComplete
+        }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const label = document.querySelector(`label[for="component${phaseIndex}_${componentIndex}"]`);
+          if (isComplete) {
+            label.classList.add('component-complete');
+          } else {
+            label.classList.remove('component-complete');
+          }
+        } else {
+          alert('Failed to update component status');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the component status');
+      });
+    }
+    
+    function showComponentDetails(name, description) {
+      document.getElementById('componentName').textContent = name;
+      document.getElementById('componentDescription').innerHTML = marked.parse(description);
+      
+      const modal = new bootstrap.Modal(document.getElementById('componentDetailsModal'));
+      modal.show();
+    }
+  </script>
+</body>
+</html>
