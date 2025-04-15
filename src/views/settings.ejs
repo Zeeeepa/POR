@@ -135,43 +135,99 @@
         <!-- AI Integration -->
         <div class="card settings-card mb-4">
           <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="bi bi-cpu"></i> AI Integration</h5>
+            <h5 class="mb-0"><i class="bi bi-cpu"></i> Prompt Automation</h5>
           </div>
           <div class="card-body">
             <form action="/settings/ai" method="POST">
               <div class="mb-3">
-                <label for="openaiApiKey" class="form-label">OpenAI API Key</label>
-                <div class="input-group">
-                  <input type="password" class="form-control" id="openaiApiKey" name="openaiApiKey" 
-                         value="<%= config.openaiApiKey ? '••••••••••••••••' : '' %>" placeholder="sk-...">
-                  <button class="btn btn-outline-secondary" type="button" id="toggleOpenAI">
-                    <i class="bi bi-eye"></i>
+                <label for="cursorPosition" class="form-label">Cursor Position</label>
+                <div class="input-group mb-2">
+                  <input type="text" class="form-control" id="cursorPosition" name="cursorPosition" 
+                         value="<%= config.cursorPosition ? config.cursorPosition : '' %>" placeholder="x,y" readonly>
+                  <button class="btn btn-primary" type="button" id="captureCursor">
+                    <i class="bi bi-cursor"></i> Capture
                   </button>
                 </div>
                 <div class="form-text">
-                  Used for generating project steps and code. 
-                  <a href="https://platform.openai.com/account/api-keys" target="_blank">Get an API key</a>
+                  Click "Capture" then click on your screen where prompts should be sent. This is where the cursor will click before sending text.
                 </div>
               </div>
               
               <div class="mb-3">
-                <label for="aiModel" class="form-label">AI Model</label>
-                <select class="form-select" id="aiModel" name="aiModel">
-                  <option value="gpt-4" <%= config.aiModel === 'gpt-4' ? 'selected' : '' %>>GPT-4</option>
-                  <option value="gpt-3.5-turbo" <%= config.aiModel === 'gpt-3.5-turbo' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
-                </select>
-                <div class="form-text">The AI model to use for generating content</div>
+                <label for="promptDelay" class="form-label">Prompt Delay (ms)</label>
+                <input type="number" class="form-control" id="promptDelay" name="promptDelay" 
+                       value="<%= config.promptDelay || 2000 %>" min="500" max="10000">
+                <div class="form-text">Delay between sending consecutive prompts (in milliseconds)</div>
               </div>
               
               <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="useAI" name="useAI" 
-                       <%= config.useAI ? 'checked' : '' %>>
-                <label class="form-check-label" for="useAI">
-                  Enable AI features
+                <input class="form-check-input" type="checkbox" id="enablePromptAutomation" name="enablePromptAutomation" 
+                       <%= config.enablePromptAutomation ? 'checked' : '' %>>
+                <label class="form-check-label" for="enablePromptAutomation">
+                  Enable prompt automation
                 </label>
               </div>
               
-              <button type="submit" class="btn btn-primary">Save AI Settings</button>
+              <div class="mb-3">
+                <h6>How Prompt Automation Works</h6>
+                <p class="text-muted small">
+                  Instead of using OpenAI API directly, this system:
+                  <ol class="small">
+                    <li>Sends template prompts to your chosen cursor position</li>
+                    <li>Watches the corresponding GitHub repository for new PRs/branches</li>
+                    <li>Auto-merges PRs that contain generated steps (STEPS.md)</li>
+                  </ol>
+                  This allows you to use any AI service of your choice through its native interface.
+                </p>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Save Prompt Settings</button>
+            </form>
+          </div>
+        </div>
+        
+        <!-- GitHub Auto-Merge Settings -->
+        <div class="card settings-card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-git"></i> GitHub Auto-Merge Settings</h5>
+          </div>
+          <div class="card-body">
+            <form action="/settings/github-automation" method="POST">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="enableAutoMerge" name="enableAutoMerge" 
+                       <%= config.enableAutoMerge ? 'checked' : '' %>>
+                <label class="form-check-label" for="enableAutoMerge">
+                  Enable auto-merge for step generation PRs
+                </label>
+              </div>
+              
+              <div class="mb-3">
+                <label for="autoMergeKeywords" class="form-label">Auto-Merge Keywords</label>
+                <input type="text" class="form-control" id="autoMergeKeywords" name="autoMergeKeywords" 
+                       value="<%= config.autoMergeKeywords || 'generate steps,step generation,implementation plan,steps.md,step-by-step' %>">
+                <div class="form-text">Comma-separated keywords to identify step generation PRs for auto-merging</div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="pollingInterval" class="form-label">Repository Polling Interval (seconds)</label>
+                <input type="number" class="form-control" id="pollingInterval" name="pollingInterval" 
+                       value="<%= config.pollingInterval || 60 %>" min="30" max="3600">
+                <div class="form-text">How often to check repositories for new PRs and branches</div>
+              </div>
+              
+              <div class="mb-3">
+                <h6>Auto-Merge Process</h6>
+                <p class="text-muted small">
+                  When a PR is detected that contains any of the keywords above or modifies STEPS.md:
+                  <ol class="small">
+                    <li>The system will automatically merge it into the main branch</li>
+                    <li>The STEPS.md file will be parsed to extract implementation phases and components</li>
+                    <li>The project status will be updated to reflect the new steps</li>
+                  </ol>
+                </p>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Save Auto-Merge Settings</button>
             </form>
           </div>
         </div>
@@ -277,19 +333,61 @@
       }
     });
     
-    document.getElementById('toggleOpenAI').addEventListener('click', function() {
-      const input = document.getElementById('openaiApiKey');
-      const icon = this.querySelector('i');
+    // Cursor position capture
+    document.getElementById('captureCursor').addEventListener('click', function() {
+      const button = this;
+      const input = document.getElementById('cursorPosition');
       
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
-      } else {
-        input.type = 'password';
-        icon.classList.remove('bi-eye-slash');
-        icon.classList.add('bi-eye');
-      }
+      // Change button text to indicate capture mode
+      button.innerHTML = '<i class="bi bi-cursor-fill"></i> Click anywhere...';
+      button.classList.add('btn-danger');
+      
+      // Add a global click handler to capture the next click
+      const captureHandler = function(e) {
+        // Get cursor position
+        const x = e.clientX;
+        const y = e.clientY;
+        
+        // Update input value
+        input.value = `${x},${y}`;
+        
+        // Reset button
+        button.innerHTML = '<i class="bi bi-cursor"></i> Capture';
+        button.classList.remove('btn-danger');
+        
+        // Save position via AJAX
+        fetch('/settings/cursor-position', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ position: `${x},${y}` }),
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Show success message
+            alert('Cursor position saved successfully!');
+          } else {
+            alert('Failed to save cursor position: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error saving cursor position:', error);
+          alert('Failed to save cursor position');
+        });
+        
+        // Remove global handler
+        document.removeEventListener('click', captureHandler);
+        
+        // Prevent event from bubbling
+        e.stopPropagation();
+      };
+      
+      // Add the handler with a slight delay to avoid capturing the current click
+      setTimeout(() => {
+        document.addEventListener('click', captureHandler, { once: true });
+      }, 100);
     });
     
     // Export settings
