@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Depla Project Manager</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <style>
+    .navbar-brand i {
+      margin-right: 8px;
+    }
+    .page-header {
+      background: linear-gradient(135deg, #6f42c1 0%, #0275d8 100%);
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+    .settings-card {
+      margin-bottom: 1.5rem;
+      border-left: 4px solid #6f42c1;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">
+        <i class="bi bi-code-square"></i>Depla Project Manager
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/">
+              <i class="bi bi-house-door"></i> Home
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/projects">
+              <i class="bi bi-folder"></i> Projects
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Section -->
+  <header class="page-header">
+    <div class="container">
+      <h1><i class="bi bi-gear"></i> Settings</h1>
+      <p class="lead mb-0">Configure your Depla Project Manager</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-md-8 mx-auto">
+        <!-- General Settings -->
+        <div class="card settings-card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-sliders"></i> General Settings</h5>
+          </div>
+          <div class="card-body">
+            <form action="/settings/update" method="POST">
+              <div class="mb-3">
+                <label for="defaultProjectPath" class="form-label">Default Project Path</label>
+                <input type="text" class="form-control" id="defaultProjectPath" name="defaultProjectPath" 
+                       value="<%= config.defaultProjectPath || '' %>" placeholder="/path/to/projects">
+                <div class="form-text">The default directory where new projects will be created</div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="defaultTemplateDir" class="form-label">Template Directory</label>
+                <input type="text" class="form-control" id="defaultTemplateDir" name="defaultTemplateDir" 
+                       value="<%= config.defaultTemplateDir || '' %>" placeholder="/path/to/templates">
+                <div class="form-text">Directory containing project templates</div>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Save General Settings</button>
+            </form>
+          </div>
+        </div>
+        
+        <!-- GitHub Integration -->
+        <div class="card settings-card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-github"></i> GitHub Integration</h5>
+          </div>
+          <div class="card-body">
+            <form action="/settings/github" method="POST">
+              <div class="mb-3">
+                <label for="githubToken" class="form-label">GitHub Personal Access Token</label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="githubToken" name="githubToken" 
+                         value="<%= config.githubToken ? '••••••••••••••••' : '' %>" placeholder="ghp_...">
+                  <button class="btn btn-outline-secondary" type="button" id="toggleToken">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+                <div class="form-text">
+                  Used for GitHub repository operations. 
+                  <a href="https://github.com/settings/tokens" target="_blank">Create a token</a> with 'repo' scope.
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="githubUsername" class="form-label">GitHub Username</label>
+                <input type="text" class="form-control" id="githubUsername" name="githubUsername" 
+                       value="<%= config.githubUsername || '' %>" placeholder="Your GitHub username">
+              </div>
+              
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="autoCreateRepo" name="autoCreateRepo" 
+                       <%= config.autoCreateRepo ? 'checked' : '' %>>
+                <label class="form-check-label" for="autoCreateRepo">
+                  Automatically create GitHub repositories for new projects
+                </label>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Save GitHub Settings</button>
+            </form>
+          </div>
+        </div>
+        
+        <!-- AI Integration -->
+        <div class="card settings-card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-cpu"></i> AI Integration</h5>
+          </div>
+          <div class="card-body">
+            <form action="/settings/ai" method="POST">
+              <div class="mb-3">
+                <label for="openaiApiKey" class="form-label">OpenAI API Key</label>
+                <div class="input-group">
+                  <input type="password" class="form-control" id="openaiApiKey" name="openaiApiKey" 
+                         value="<%= config.openaiApiKey ? '••••••••••••••••' : '' %>" placeholder="sk-...">
+                  <button class="btn btn-outline-secondary" type="button" id="toggleOpenAI">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+                <div class="form-text">
+                  Used for generating project steps and code. 
+                  <a href="https://platform.openai.com/account/api-keys" target="_blank">Get an API key</a>
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="aiModel" class="form-label">AI Model</label>
+                <select class="form-select" id="aiModel" name="aiModel">
+                  <option value="gpt-4" <%= config.aiModel === 'gpt-4' ? 'selected' : '' %>>GPT-4</option>
+                  <option value="gpt-3.5-turbo" <%= config.aiModel === 'gpt-3.5-turbo' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
+                </select>
+                <div class="form-text">The AI model to use for generating content</div>
+              </div>
+              
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="useAI" name="useAI" 
+                       <%= config.useAI ? 'checked' : '' %>>
+                <label class="form-check-label" for="useAI">
+                  Enable AI features
+                </label>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Save AI Settings</button>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Advanced Settings -->
+        <div class="card settings-card">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-tools"></i> Advanced Settings</h5>
+          </div>
+          <div class="card-body">
+            <form action="/settings/advanced" method="POST">
+              <div class="mb-3">
+                <label for="logLevel" class="form-label">Log Level</label>
+                <select class="form-select" id="logLevel" name="logLevel">
+                  <option value="error" <%= config.logLevel === 'error' ? 'selected' : '' %>>Error</option>
+                  <option value="warn" <%= config.logLevel === 'warn' ? 'selected' : '' %>>Warning</option>
+                  <option value="info" <%= config.logLevel === 'info' ? 'selected' : '' %>>Info</option>
+                  <option value="debug" <%= config.logLevel === 'debug' ? 'selected' : '' %>>Debug</option>
+                </select>
+              </div>
+              
+              <div class="mb-3">
+                <label for="port" class="form-label">Server Port</label>
+                <input type="number" class="form-control" id="port" name="port" 
+                       value="<%= config.port || 3000 %>" min="1024" max="65535">
+                <div class="form-text">Requires restart to take effect</div>
+              </div>
+              
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="enableWebhooks" name="enableWebhooks" 
+                       <%= config.enableWebhooks ? 'checked' : '' %>>
+                <label class="form-check-label" for="enableWebhooks">
+                  Enable webhook support
+                </label>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Save Advanced Settings</button>
+            </form>
+            
+            <hr>
+            
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetModal">
+                Reset All Settings
+              </button>
+              
+              <button class="btn btn-outline-secondary" id="exportSettings">
+                Export Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Reset Confirmation Modal -->
+  <div class="modal fade" id="resetModal" tabindex="-1" aria-labelledby="resetModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="resetModalLabel">Confirm Reset</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-danger">
+            <i class="bi bi-exclamation-triangle"></i> Warning: This will reset all settings to their default values.
+          </p>
+          <p>This action cannot be undone. Are you sure you want to proceed?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form action="/settings/reset" method="POST">
+            <button type="submit" class="btn btn-danger">Reset All Settings</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-dark text-center text-white py-4 mt-5">
+    <div class="container">
+      <p class="mb-0">Depla Project Manager</p>
+      <small class="d-block text-muted">Version 1.0.0</small>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Toggle password visibility
+    document.getElementById('toggleToken').addEventListener('click', function() {
+      const input = document.getElementById('githubToken');
+      const icon = this.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+      }
+    });
+    
+    document.getElementById('toggleOpenAI').addEventListener('click', function() {
+      const input = document.getElementById('openaiApiKey');
+      const icon = this.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+      }
+    });
+    
+    // Export settings
+    document.getElementById('exportSettings').addEventListener('click', function() {
+      fetch('/settings/export')
+        .then(response => response.json())
+        .then(data => {
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'depla-settings.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        })
+        .catch(error => {
+          console.error('Error exporting settings:', error);
+          alert('Failed to export settings');
+        });
+    });
+  </script>
+</body>
+</html>
