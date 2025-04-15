@@ -10,7 +10,6 @@ const GitHubEnhanced = require('../utils/GitHubEnhanced');
 const MessageQueueManager = require('../models/MessageQueueManager');
 const WorkflowManager = require('../models/WorkflowManager');
 const MultiProjectManager = require('../models/MultiProjectManager');
-const DeplaEnhanced = require('../models/DeplaEnhanced');
 
 // Export all framework components
 module.exports = {
@@ -20,6 +19,6 @@ module.exports = {
   GitHubEnhanced,
   MessageQueueManager,
   WorkflowManager,
-  MultiProjectManager,
-  DeplaEnhanced
+  MultiProjectManager
+  // Remove DeplaEnhanced from here to break circular dependency
 };

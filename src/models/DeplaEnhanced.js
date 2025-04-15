@@ -4,7 +4,8 @@
  * and improved message handling for concurrent development
  */
 
-const { DeplaManager } = require('../framework');
+// Import DeplaManager directly from its file, not from framework
+const DeplaManager = require('../framework/DeplaManager');
 const WorkflowManager = require('./WorkflowManager');
 const MultiProjectManager = require('./MultiProjectManager');
 const MessageQueueManager = require('./MessageQueueManager');
