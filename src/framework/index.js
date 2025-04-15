@@ -4,6 +4,7 @@
  */
 
 const ConfigManager = require('./ConfigManager');
+const ConfigurationSystem = require('./ConfigurationSystem');
 const DeplaManager = require('./DeplaManager');
 const ProjectManager = require('./ProjectManager');
 const GitHubEnhanced = require('../utils/GitHubEnhanced');
@@ -15,6 +16,7 @@ const MultiProjectManager = require('../models/MultiProjectManager');
 // Export all framework components
 module.exports = {
   ConfigManager,
+  ConfigurationSystem,
   DeplaManager,
   ProjectManager,
   GitHubEnhanced,
