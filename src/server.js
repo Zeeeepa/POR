@@ -13,6 +13,10 @@ const logger = require('./utils/logger');
 const DeplaEnhanced = require('./models/DeplaEnhanced');
 const CursorAutomation = require('./utils/CursorAutomation');
 const GitHubEnhanced = require('./utils/GitHubEnhanced');
+const TemplateManager = require('./models/TemplateManager');
+const CursorPositionManager = require('./models/CursorPositionManager');
+const PhaseConfigManager = require('./models/PhaseConfigManager');
+const WorkflowManager = require('./models/WorkflowManager');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -33,6 +37,10 @@ app.use(bodyParser.json());
 // Initialize DeplaEnhanced
 let deplaManager;
 let githubClient;
+let templateManager;
+let cursorPositionManager;
+let phaseConfigManager;
+let workflowManager;
 
 // Initialize application
 async function initializeApp() {
@@ -41,6 +49,12 @@ async function initializeApp() {
   
   // Use the directly imported DeplaEnhanced class
   deplaManager = new DeplaEnhanced();
+  
+  // Initialize new managers
+  templateManager = new TemplateManager();
+  cursorPositionManager = new CursorPositionManager();
+  phaseConfigManager = new PhaseConfigManager();
+  workflowManager = new WorkflowManager();
   
   // Start the server
   app.listen(PORT, () => {
@@ -108,7 +122,9 @@ app.get('/api/github/repositories', async (req, res) => {
 app.get('/projects/:name', async (req, res) => {
   const project = deplaManager.getProject(req.params.name);
   if (project) {
-    res.render('project-detail', { project });
+    // Get phase configurations for the project
+    const phases = await phaseConfigManager.getPhaseConfigs(project.config.name);
+    res.render('project-detail', { project, phases });
   } else {
     res.status(404).send('Project not found');
   }
@@ -297,7 +313,12 @@ app.post('/projects/:name/messages/send-all', async (req, res) => {
 
 // Settings routes
 app.get('/settings', async (req, res) => {
-  res.render('settings', { config: deplaManager.config });
+  // Get cursor positions for settings page
+  const cursorPositions = await cursorPositionManager.getAllPositions();
+  res.render('settings', { 
+    config: deplaManager.config,
+    cursorPositions
+  });
 });
 
 app.post('/settings/update', async (req, res) => {
@@ -323,7 +344,7 @@ app.post('/settings/github', async (req, res) => {
 // New route for cursor position capture
 app.post('/settings/cursor-position', async (req, res) => {
   try {
-    const { position } = req.body;
+    const { position, name } = req.body;
     if (!position) {
       return res.status(400).json({ success: false, error: 'Position is required' });
     }
@@ -336,12 +357,221 @@ app.post('/settings/cursor-position', async (req, res) => {
     
     // Save position to CursorAutomation
     const [x, y] = position.split(',').map(Number);
-    CursorAutomation.savePosition('default', { x, y });
+    const positionName = name || 'default';
     
-    res.json({ success: true, position });
+    // Save to both systems for compatibility
+    CursorAutomation.savePosition(positionName, { x, y });
+    await cursorPositionManager.savePosition(positionName, { x, y });
+    
+    res.json({ success: true, position, name: positionName });
   } catch (error) {
     logger.error(`Failed to save cursor position: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// New route for cursor positions management
+app.get('/cursor-positions', async (req, res) => {
+  try {
+    const positions = await cursorPositionManager.getAllPositions();
+    res.render('cursor-positions', { positions });
+  } catch (error) {
+    logger.error(`Failed to get cursor positions: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Error Loading Cursor Positions',
+      message: error.message,
+      backUrl: '/settings'
+    });
+  }
+});
+
+app.post('/cursor-positions/add', async (req, res) => {
+  try {
+    const { name, x, y } = req.body;
+    if (!name || !x || !y) {
+      throw new Error('Name, X, and Y coordinates are required');
+    }
+    
+    await cursorPositionManager.savePosition(name, { x: parseInt(x), y: parseInt(y) });
+    res.redirect('/cursor-positions');
+  } catch (error) {
+    logger.error(`Failed to add cursor position: ${error.message}`);
+    res.status(400).render('error', {
+      title: 'Failed to Add Cursor Position',
+      message: error.message,
+      backUrl: '/cursor-positions'
+    });
+  }
+});
+
+app.post('/cursor-positions/delete/:name', async (req, res) => {
+  try {
+    await cursorPositionManager.deletePosition(req.params.name);
+    res.redirect('/cursor-positions');
+  } catch (error) {
+    logger.error(`Failed to delete cursor position: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Failed to Delete Cursor Position',
+      message: error.message,
+      backUrl: '/cursor-positions'
+    });
+  }
+});
+
+// New route for template management
+app.get('/templates', async (req, res) => {
+  try {
+    const templates = await templateManager.getAllTemplates();
+    res.render('template-manager', { templates });
+  } catch (error) {
+    logger.error(`Failed to get templates: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Error Loading Templates',
+      message: error.message,
+      backUrl: '/settings'
+    });
+  }
+});
+
+app.post('/templates/add', async (req, res) => {
+  try {
+    const { name, content, description, category } = req.body;
+    if (!name || !content) {
+      throw new Error('Name and content are required');
+    }
+    
+    await templateManager.saveTemplate(name, content, description, category);
+    res.redirect('/templates');
+  } catch (error) {
+    logger.error(`Failed to add template: ${error.message}`);
+    res.status(400).render('error', {
+      title: 'Failed to Add Template',
+      message: error.message,
+      backUrl: '/templates'
+    });
+  }
+});
+
+app.post('/templates/delete/:name', async (req, res) => {
+  try {
+    await templateManager.deleteTemplate(req.params.name);
+    res.redirect('/templates');
+  } catch (error) {
+    logger.error(`Failed to delete template: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Failed to Delete Template',
+      message: error.message,
+      backUrl: '/templates'
+    });
+  }
+});
+
+// New route for phase configuration
+app.get('/projects/:name/phases', async (req, res) => {
+  try {
+    const project = deplaManager.getProject(req.params.name);
+    if (!project) {
+      return res.status(404).send('Project not found');
+    }
+    
+    const phases = await phaseConfigManager.getPhaseConfigs(project.config.name);
+    res.render('phase-editor', { project, phases });
+  } catch (error) {
+    logger.error(`Failed to get phase configurations: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Error Loading Phase Configurations',
+      message: error.message,
+      backUrl: `/projects/${req.params.name}`
+    });
+  }
+});
+
+app.post('/projects/:name/phases/add', async (req, res) => {
+  try {
+    const { phaseName, description, steps, order } = req.body;
+    if (!phaseName) {
+      throw new Error('Phase name is required');
+    }
+    
+    await phaseConfigManager.addPhaseConfig(req.params.name, {
+      name: phaseName,
+      description,
+      steps: steps ? steps.split('\n').map(step => step.trim()).filter(Boolean) : [],
+      order: parseInt(order) || 0
+    });
+    
+    res.redirect(`/projects/${req.params.name}/phases`);
+  } catch (error) {
+    logger.error(`Failed to add phase configuration: ${error.message}`);
+    res.status(400).render('error', {
+      title: 'Failed to Add Phase Configuration',
+      message: error.message,
+      backUrl: `/projects/${req.params.name}/phases`
+    });
+  }
+});
+
+app.post('/projects/:name/phases/delete/:phaseId', async (req, res) => {
+  try {
+    await phaseConfigManager.deletePhaseConfig(req.params.name, req.params.phaseId);
+    res.redirect(`/projects/${req.params.name}/phases`);
+  } catch (error) {
+    logger.error(`Failed to delete phase configuration: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Failed to Delete Phase Configuration',
+      message: error.message,
+      backUrl: `/projects/${req.params.name}/phases`
+    });
+  }
+});
+
+// New route for workflow dashboard
+app.get('/workflow-dashboard', async (req, res) => {
+  try {
+    const workflows = await workflowManager.getAllWorkflows();
+    const projects = (await deplaManager.initialize()).projects;
+    
+    res.render('workflow-dashboard', { workflows, projects });
+  } catch (error) {
+    logger.error(`Failed to get workflows: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Error Loading Workflow Dashboard',
+      message: error.message,
+      backUrl: '/'
+    });
+  }
+});
+
+app.post('/workflow/start', async (req, res) => {
+  try {
+    const { projectName, phaseName } = req.body;
+    if (!projectName || !phaseName) {
+      throw new Error('Project name and phase name are required');
+    }
+    
+    const workflowId = await workflowManager.startWorkflow(projectName, phaseName);
+    res.redirect('/workflow-dashboard');
+  } catch (error) {
+    logger.error(`Failed to start workflow: ${error.message}`);
+    res.status(400).render('error', {
+      title: 'Failed to Start Workflow',
+      message: error.message,
+      backUrl: '/workflow-dashboard'
+    });
+  }
+});
+
+app.post('/workflow/:id/stop', async (req, res) => {
+  try {
+    await workflowManager.stopWorkflow(req.params.id);
+    res.redirect('/workflow-dashboard');
+  } catch (error) {
+    logger.error(`Failed to stop workflow: ${error.message}`);
+    res.status(500).render('error', {
+      title: 'Failed to Stop Workflow',
+      message: error.message,
+      backUrl: '/workflow-dashboard'
+    });
   }
 });
 

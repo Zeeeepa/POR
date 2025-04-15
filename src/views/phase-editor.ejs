@@ -1,0 +1,158 @@
+cat > src/views/phase-editor.ejs << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase Editor</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/jquery.min.js"></script>
+    <script src="/js/sortable.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Workflow Phase Editor</h1>
+            <p>Configure and manage workflow phases for your projects</p>
+        </header>
+        <div class="phase-controls">
+            <button id="new-phase" class="btn btn-primary">New Phase</button>
+            <button id="import-phases" class="btn btn-secondary">Import</button>
+            <button id="export-phases" class="btn btn-secondary">Export</button>
+            <div class="search-container">
+                <input type="text" id="phase-search" placeholder="Search phases...">
+            </div>
+        </div>
+        <div class="workflow-container">
+            <div class="workflow-selector">
+                <h2>Workflows</h2>
+                <select id="workflow-select">
+                    <% workflows.forEach(function(workflow) { %>
+                        <option value="<%= workflow.id %>"><%= workflow.name %></option>
+                    <% }); %>
+                </select>
+                <button id="new-workflow" class="btn btn-primary">New Workflow</button>
+                <button id="edit-workflow" class="btn btn-secondary">Edit</button>
+                <button id="delete-workflow" class="btn btn-danger">Delete</button>
+            </div>
+            <div class="phases-list">
+                <h2>Workflow Phases</h2>
+                <ul id="phases" class="sortable-list">
+                    <% phases.forEach(function(phase) { %>
+                        <li data-id="<%= phase.id %>" class="phase-item">
+                            <div class="phase-info">
+                                <div class="phase-header">
+                                    <h3><%= phase.name %></h3>
+                                    <span class="phase-order"><%= phase.order %></span>
+                                </div>
+                                <p><%= phase.description %></p>
+                                <div class="phase-meta">
+                                    <span class="phase-duration">Duration: <%= phase.estimatedDuration %> min</span>
+                                    <span class="phase-type">Type: <%= phase.type %></span>
+                                </div>
+                            </div>
+                            <div class="phase-actions">
+                                <button class="btn-edit" data-id="<%= phase.id %>">Edit</button>
+                                <button class="btn-duplicate" data-id="<%= phase.id %>">Duplicate</button>
+                                <button class="btn-delete" data-id="<%= phase.id %>">Delete</button>
+                            </div>
+                        </li>
+                    <% }); %>
+                </ul>
+                <div class="phases-empty-state <%= phases.length > 0 ? 'hidden' : '' %>">
+                    <p>No phases defined for this workflow. Click "New Phase" to get started.</p>
+                </div>
+            </div>
+            <div class="phase-editor">
+                <h2>Phase Editor</h2>
+                <form id="phase-form">
+                    <div class="form-group">
+                        <label for="phase-name">Phase Name</label>
+                        <input type="text" id="phase-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phase-description">Description</label>
+                        <textarea id="phase-description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="phase-type">Phase Type</label>
+                        <select id="phase-type" name="type">
+                            <option value="manual">Manual</option>
+                            <option value="automated">Automated</option>
+                            <option value="conditional">Conditional</option>
+                            <option value="approval">Approval</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="phase-duration">Estimated Duration (minutes)</label>
+                        <input type="number" id="phase-duration" name="estimatedDuration" min="1" value="15">
+                    </div>
+                    <div class="form-group">
+                        <label for="phase-actions">Actions</label>
+                        <textarea id="phase-actions" name="actions" rows="6" placeholder="Enter actions to perform during this phase, one per line"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="phase-dependencies">Dependencies</label>
+                        <select id="phase-dependencies" name="dependencies" multiple>
+                            <% phases.forEach(function(phase) { %>
+                                <option value="<%= phase.id %>"><%= phase.name %></option>
+                            <% }); %>
+                        </select>
+                        <small>Hold Ctrl/Cmd to select multiple phases</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="phase-conditions">Conditions (for conditional phases)</label>
+                        <textarea id="phase-conditions" name="conditions" rows="4" placeholder="Enter conditions in JSON format"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save Phase</button>
+                        <button type="button" id="cancel-edit" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div id="workflow-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="workflow-modal-title">New Workflow</h2>
+            <form id="workflow-form">
+                <div class="form-group">
+                    <label for="workflow-name">Workflow Name</label>
+                    <input type="text" id="workflow-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="workflow-description">Description</label>
+                    <textarea id="workflow-description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="workflow-project">Associated Project</label>
+                    <select id="workflow-project" name="projectId">
+                        <option value="">None</option>
+                        <% projects.forEach(function(project) { %>
+                            <option value="<%= project.id %>"><%= project.name %></option>
+                        <% }); %>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Save Workflow</button>
+                    <button type="button" id="cancel-workflow" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="delete-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Confirm Delete</h2>
+            <p id="delete-message">Are you sure you want to delete this item? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="confirm-delete" class="btn btn-danger">Delete</button>
+                <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <script src="/js/phase-editor.js"></script>
+</body>
+</html>
+EOL

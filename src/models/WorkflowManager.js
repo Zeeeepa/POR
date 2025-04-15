@@ -1,634 +1,849 @@
+cat > src/models/WorkflowManager.js << 'EOL'
 /**
- * WorkflowManager.js
- * Manages dynamic workflow configurations, phases and execution
+ * Workflow Manager
+ * Manages workflow execution and state
  */
-
-const fs = require('fs-extra');
+const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const EventEmitter = require('events');
-const logger = require('../utils/logger');
-const templateEngine = require('../utils/templateEngine');
-
 class WorkflowManager extends EventEmitter {
-  constructor(config = {}) {
-    super();
-    
-    this.configDir = path.join(process.cwd(), 'config');
-    this.workflowsDir = path.join(this.configDir, 'workflows');
-    this.templatesDir = path.join(this.configDir, 'templates');
-    
-    // Ensure directories exist
-    fs.ensureDirSync(this.workflowsDir);
-    fs.ensureDirSync(this.templatesDir);
-    
-    this.workflows = {};
-    this.templates = {};
-    this.activeWorkflows = {};
-    
-    this.loadTemplates();
-    this.loadWorkflows();
-  }
-  
-  /**
-   * Load all workflow templates
-   */
-  loadTemplates() {
-    try {
-      const templateFiles = fs.readdirSync(this.templatesDir).filter(file => file.endsWith('.json'));
-      
-      this.templates = {};
-      for (const file of templateFiles) {
-        const templatePath = path.join(this.templatesDir, file);
-        const templateName = path.basename(file, '.json');
+    /**
+     * Initialize the Workflow Manager
+     * @param {Object} options - Configuration options
+     * @param {Object} options.phaseConfigManager - Phase configuration manager instance
+     * @param {Object} options.templateManager - Template manager instance
+     * @param {Object} options.cursorPositionManager - Cursor position manager instance
+     * @param {string} options.workflowsDir - Directory to store workflow state
+     */
+    constructor(options = {}) {
+        super();
+        this.phaseConfigManager = options.phaseConfigManager;
+        this.templateManager = options.templateManager;
+        this.cursorPositionManager = options.cursorPositionManager;
+        this.workflowsDir = options.workflowsDir || path.join(process.cwd(), 'data', 'workflow-state');
+        this.activeWorkflows = new Map();
+        this.workflowQueue = [];
         
-        const templateData = fs.readJsonSync(templatePath);
-        this.templates[templateName] = templateData;
-      }
-      
-      logger.info(`Loaded ${Object.keys(this.templates).length} workflow templates`);
-    } catch (error) {
-      logger.error(`Failed to load workflow templates: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Load all saved workflows
-   */
-  loadWorkflows() {
-    try {
-      const workflowFiles = fs.readdirSync(this.workflowsDir).filter(file => file.endsWith('.json'));
-      
-      this.workflows = {};
-      for (const file of workflowFiles) {
-        const workflowPath = path.join(this.workflowsDir, file);
-        const workflowId = path.basename(file, '.json');
-        
-        const workflowData = fs.readJsonSync(workflowPath);
-        this.workflows[workflowId] = workflowData;
-      }
-      
-      logger.info(`Loaded ${Object.keys(this.workflows).length} workflows`);
-    } catch (error) {
-      logger.error(`Failed to load workflows: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Create default templates if none exist
-   */
-  createDefaultTemplates() {
-    try {
-      // Create default templates if none exist
-      if (Object.keys(this.templates).length === 0) {
-        const defaultTemplates = {
-          'feature-implementation': {
-            name: 'Feature Implementation',
-            description: 'Template for implementing a new feature',
-            content: 'Implement the {{featureName}} feature according to the following requirements:\n\n{{requirements}}\n\nConsider the following aspects:\n- Performance\n- Security\n- Maintainability\n- Testability',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          'bug-fix': {
-            name: 'Bug Fix',
-            description: 'Template for fixing a bug',
-            content: 'Fix the bug in {{component}} described as follows:\n\n{{bugDescription}}\n\nSteps to reproduce:\n{{reproductionSteps}}\n\nExpected behavior:\n{{expectedBehavior}}',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          'code-review': {
-            name: 'Code Review',
-            description: 'Template for code review',
-            content: 'Review the following code for {{component}}:\n\n```\n{{code}}\n```\n\nFocus on:\n- Code quality\n- Potential bugs\n- Performance issues\n- Security vulnerabilities',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        };
-        
-        // Save default templates
-        for (const [name, data] of Object.entries(defaultTemplates)) {
-          this.saveTemplate(name, data);
+        // Ensure workflow state directory exists
+        if (!fs.existsSync(this.workflowsDir)) {
+            fs.mkdirSync(this.workflowsDir, { recursive: true });
         }
         
-        logger.info('Created default templates');
-      }
-      
-      return true;
-    } catch (error) {
-      logger.error(`Failed to create default templates: ${error.message}`);
-      return false;
+        // Load active workflows
+        this.loadActiveWorkflows();
     }
-  }
-  
-  /**
-   * Save a workflow configuration
-   * @param {string} workflowId - Workflow ID
-   * @param {object} workflowData - Workflow configuration
-   */
-  saveWorkflow(workflowId, workflowData) {
-    try {
-      const workflowPath = path.join(this.workflowsDir, `${workflowId}.json`);
-      
-      // Ensure workflow has a name
-      if (!workflowData.name) {
-        workflowData.name = `Workflow ${workflowId}`;
-      }
-      
-      // Add metadata
-      workflowData.updatedAt = new Date().toISOString();
-      if (!workflowData.createdAt) {
-        workflowData.createdAt = new Date().toISOString();
-      }
-      
-      // Save to disk
-      fs.writeJsonSync(workflowPath, workflowData, { spaces: 2 });
-      
-      // Update in-memory cache
-      this.workflows[workflowId] = workflowData;
-      
-      logger.info(`Saved workflow: ${workflowData.name}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to save workflow: ${error.message}`);
-      return false;
-    }
-  }
-  
-  /**
-   * Create a new workflow configuration
-   * @param {string} name - Workflow name
-   * @param {object} data - Initial workflow data
-   * @returns {string} New workflow ID
-   */
-  createWorkflow(name, data = {}) {
-    const workflowId = uuidv4();
     
-    const workflowData = {
-      id: workflowId,
-      name: name,
-      description: data.description || '',
-      phases: data.phases || [],
-      settings: data.settings || {
-        defaultDelayBetweenMessages: 2000,
-        enableAutoMerge: true
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    /**
+     * Load active workflows from the workflow state directory
+     */
+    loadActiveWorkflows() {
+        try {
+            const files = fs.readdirSync(this.workflowsDir);
+            
+            for (const file of files) {
+                if (file.endsWith('.json')) {
+                    const workflowPath = path.join(this.workflowsDir, file);
+                    const workflowState = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+                    
+                    // Only load active or paused workflows
+                    if (workflowState.status === 'active' || workflowState.status === 'paused') {
+                        this.activeWorkflows.set(workflowState.id, workflowState);
+                    }
+                }
+            }
+            
+            console.log(`Loaded ${this.activeWorkflows.size} active workflows`);
+        } catch (error) {
+            console.error('Error loading active workflows:', error);
+        }
+    }
     
-    this.saveWorkflow(workflowId, workflowData);
-    return workflowId;
-  }
-  
-  /**
-   * Save a template
-   * @param {string} templateName - Template name
-   * @param {object} templateData - Template configuration
-   */
-  saveTemplate(templateName, templateData) {
-    try {
-      const templatePath = path.join(this.templatesDir, `${templateName}.json`);
-      
-      // Add metadata
-      templateData.updatedAt = new Date().toISOString();
-      if (!templateData.createdAt) {
-        templateData.createdAt = new Date().toISOString();
-      }
-      
-      // Save to disk
-      fs.writeJsonSync(templatePath, templateData, { spaces: 2 });
-      
-      // Update in-memory cache
-      this.templates[templateName] = templateData;
-      
-      logger.info(`Saved template: ${templateName}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to save template: ${error.message}`);
-      return false;
+    /**
+     * Save workflow state to file
+     * @param {Object} workflowState - Workflow state to save
+     */
+    saveWorkflowState(workflowState) {
+        try {
+            const workflowPath = path.join(this.workflowsDir, `${workflowState.id}.json`);
+            fs.writeFileSync(workflowPath, JSON.stringify(workflowState, null, 2));
+        } catch (error) {
+            console.error(`Error saving workflow state for ${workflowState.id}:`, error);
+        }
     }
-  }
-  
-  /**
-   * Create a new workflow phase
-   * @param {string} workflowId - Workflow ID
-   * @param {object} phaseData - Phase configuration
-   * @returns {number} New phase index
-   */
-  addPhaseToWorkflow(workflowId, phaseData) {
-    try {
-      if (!this.workflows[workflowId]) {
-        throw new Error(`Workflow not found: ${workflowId}`);
-      }
-      
-      const workflow = this.workflows[workflowId];
-      
-      // Create phase object
-      const phase = {
-        id: uuidv4(),
-        name: phaseData.name || `Phase ${workflow.phases.length + 1}`,
-        description: phaseData.description || '',
-        templateId: phaseData.templateId,
-        requiresCodeAnalysis: phaseData.requiresCodeAnalysis === true,
-        expectedOutput: phaseData.expectedOutput || '',
-        successCriteria: phaseData.successCriteria || '',
-        status: 'pending',
-        order: workflow.phases.length,
-        createdAt: new Date().toISOString()
-      };
-      
-      // Add to workflow
-      workflow.phases.push(phase);
-      
-      // Save workflow
-      this.saveWorkflow(workflowId, workflow);
-      
-      return workflow.phases.length - 1;
-    } catch (error) {
-      logger.error(`Failed to add phase to workflow: ${error.message}`);
-      throw error;
+    
+    /**
+     * Start a workflow
+     * @param {string} workflowId - Workflow ID
+     * @param {Object} options - Workflow options
+     * @returns {Object} - Workflow state
+     */
+    startWorkflow(workflowId, options = {}) {
+        // Get workflow configuration
+        const workflow = this.phaseConfigManager.getWorkflowById(workflowId);
+        
+        if (!workflow) {
+            throw new Error(`Workflow ${workflowId} not found`);
+        }
+        
+        // Check if workflow is already active
+        if (this.activeWorkflows.has(workflowId)) {
+            throw new Error(`Workflow ${workflowId} is already active`);
+        }
+        
+        // Get workflow phases
+        const phases = this.phaseConfigManager.getWorkflowPhases(workflowId);
+        
+        if (phases.length === 0) {
+            throw new Error(`Workflow ${workflowId} has no phases`);
+        }
+        
+        // Create workflow state
+        const workflowState = {
+            id: workflowId,
+            name: workflow.name,
+            description: workflow.description,
+            projectId: workflow.projectId,
+            status: 'active',
+            currentPhaseIndex: 0,
+            phases: phases.map(phase => ({
+                id: phase.id,
+                name: phase.name,
+                type: phase.type,
+                status: 'pending',
+                order: phase.order,
+                startedAt: null,
+                completedAt: null,
+                result: null,
+                error: null
+            })),
+            options: {
+                autoAdvance: options.autoAdvance !== undefined ? options.autoAdvance : true,
+                variables: options.variables || {},
+                ...options
+            },
+            progress: 0,
+            startedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            completedAt: null,
+            result: null,
+            error: null
+        };
+        
+        // Add to active workflows
+        this.activeWorkflows.set(workflowId, workflowState);
+        
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
+        
+        // Start first phase
+        this.startPhase(workflowId, 0);
+        
+        // Emit workflow started event
+        this.emit('workflowStarted', workflowState);
+        
+        return workflowState;
     }
-  }
-  
-  /**
-   * Get a workflow configuration
-   * @param {string} workflowId - Workflow ID
-   * @returns {object} Workflow configuration
-   */
-  getWorkflow(workflowId) {
-    return this.workflows[workflowId];
-  }
-  
-  /**
-   * Get all workflow configurations
-   * @returns {object} All workflows
-   */
-  getAllWorkflows() {
-    return { ...this.workflows };
-  }
-  
-  /**
-   * Get all templates
-   * @returns {object} All templates
-   */
-  getAllTemplates() {
-    return { ...this.templates };
-  }
-  
-  /**
-   * Get a template by name
-   * @param {string} templateName - Template name
-   * @returns {object} Template data
-   */
-  getTemplate(templateName) {
-    return this.templates[templateName];
-  }
-  
-  /**
-   * Get template content with variables replaced
-   * @param {string} templateName - Template name
-   * @param {object} variables - Variables to replace in template
-   * @returns {string} Processed template content
-   */
-  processTemplate(templateName, variables = {}) {
-    try {
-      const template = this.getTemplate(templateName);
-      if (!template) {
-        throw new Error(`Template not found: ${templateName}`);
-      }
-      
-      // Process template with Handlebars
-      return templateEngine.renderString(template.content, variables);
-    } catch (error) {
-      logger.error(`Failed to process template: ${error.message}`);
-      throw error;
-    }
-  }
-  
-  /**
-   * Start workflow execution for a project
-   * @param {string} workflowId - Workflow ID
-   * @param {string} projectId - Project ID
-   * @param {object} initialContext - Initial context data
-   * @returns {string} Execution ID
-   */
-  startWorkflowExecution(workflowId, projectId, initialContext = {}) {
-    try {
-      // Get workflow config
-      const workflow = this.getWorkflow(workflowId);
-      if (!workflow) {
-        throw new Error(`Workflow not found: ${workflowId}`);
-      }
-      
-      // Check if workflow has phases
-      if (!workflow.phases || workflow.phases.length === 0) {
-        throw new Error('Workflow has no phases to execute');
-      }
-      
-      // Create execution context
-      const executionId = uuidv4();
-      const executionContext = {
-        executionId,
-        workflowId,
-        projectId,
-        currentPhaseIndex: 0,
-        status: 'running',
-        startedAt: new Date().toISOString(),
-        context: {
-          ...initialContext,
-          projectId,
-          workflowId,
-          executionId
-        },
-        phaseResults: [],
-        logs: []
-      };
-      
-      // Save to active workflows
-      this.activeWorkflows[executionId] = executionContext;
-      
-      // Log start
-      logger.info(`Started workflow execution: ${workflow.name} for project ${projectId}`);
-      this.logExecution(executionId, 'info', 'Workflow execution started');
-      
-      // Start executing first phase
-      this.executeNextPhase(executionId);
-      
-      return executionId;
-    } catch (error) {
-      logger.error(`Failed to start workflow execution: ${error.message}`);
-      throw error;
-    }
-  }
-  
-  /**
-   * Execute the next phase in a workflow
-   * @param {string} executionId - Execution ID
-   */
-  async executeNextPhase(executionId) {
-    try {
-      const execution = this.activeWorkflows[executionId];
-      if (!execution) {
-        throw new Error(`Execution not found: ${executionId}`);
-      }
-      
-      // Get workflow and current phase
-      const workflow = this.getWorkflow(execution.workflowId);
-      const currentPhase = workflow.phases[execution.currentPhaseIndex];
-      
-      if (!currentPhase) {
-        // All phases completed
-        this.completeWorkflowExecution(executionId);
-        return;
-      }
-      
-      // Update phase status
-      currentPhase.status = 'running';
-      currentPhase.startedAt = new Date().toISOString();
-      
-      // Save workflow
-      this.saveWorkflow(execution.workflowId, workflow);
-      
-      // Log phase start
-      logger.info(`Executing phase: ${currentPhase.name} (${execution.currentPhaseIndex + 1}/${workflow.phases.length})`);
-      this.logExecution(executionId, 'info', `Executing phase: ${currentPhase.name}`);
-      
-      // Emit phase started event
-      this.emit('phaseStarted', {
-        executionId,
-        workflowId: execution.workflowId,
-        projectId: execution.projectId,
-        phase: currentPhase
-      });
-      
-      try {
-        // Execute phase
-        const result = await this.executePhase(executionId, currentPhase);
+    
+    /**
+     * Start a workflow phase
+     * @param {string} workflowId - Workflow ID
+     * @param {number} phaseIndex - Phase index
+     * @returns {Object} - Updated workflow state
+     */
+    startPhase(workflowId, phaseIndex) {
+        const workflowState = this.activeWorkflows.get(workflowId);
+        
+        if (!workflowState) {
+            throw new Error(`Workflow ${workflowId} not found or not active`);
+        }
+        
+        if (phaseIndex < 0 || phaseIndex >= workflowState.phases.length) {
+            throw new Error(`Invalid phase index ${phaseIndex}`);
+        }
+        
+        // Get phase
+        const phase = workflowState.phases[phaseIndex];
         
         // Update phase status
-        currentPhase.status = 'completed';
-        currentPhase.completedAt = new Date().toISOString();
+        phase.status = 'active';
+        phase.startedAt = new Date().toISOString();
         
-        // Add result to execution context
-        execution.phaseResults.push({
-          phaseId: currentPhase.id,
-          result,
-          completedAt: new Date().toISOString()
-        });
+        // Update workflow state
+        workflowState.currentPhaseIndex = phaseIndex;
+        workflowState.updatedAt = new Date().toISOString();
         
-        // Log phase completion
-        logger.info(`Completed phase: ${currentPhase.name}`);
-        this.logExecution(executionId, 'info', `Completed phase: ${currentPhase.name}`);
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
+        
+        // Get full phase configuration
+        const phaseConfig = this.phaseConfigManager.getPhaseById(phase.id);
+        
+        // Execute phase based on type
+        switch (phaseConfig.type) {
+            case 'manual':
+                // Manual phases require user interaction
+                this.emit('phaseStarted', workflowState, phase, phaseConfig);
+                break;
+                
+            case 'automated':
+                // Automated phases execute automatically
+                this._executeAutomatedPhase(workflowState, phase, phaseConfig);
+                break;
+                
+            case 'conditional':
+                // Conditional phases evaluate conditions
+                this._evaluateConditionalPhase(workflowState, phase, phaseConfig);
+                break;
+                
+            case 'approval':
+                // Approval phases require user approval
+                this.emit('approvalRequired', workflowState, phase, phaseConfig);
+                break;
+                
+            default:
+                // Unknown phase type
+                this.completePhase(workflowId, phaseIndex, {
+                    success: false,
+                    error: `Unknown phase type: ${phaseConfig.type}`
+                });
+        }
+        
+        return workflowState;
+    }
+    
+    /**
+     * Complete a workflow phase
+     * @param {string} workflowId - Workflow ID
+     * @param {number} phaseIndex - Phase index
+     * @param {Object} result - Phase result
+     * @returns {Object} - Updated workflow state
+     */
+    completePhase(workflowId, phaseIndex, result = {}) {
+        const workflowState = this.activeWorkflows.get(workflowId);
+        
+        if (!workflowState) {
+            throw new Error(`Workflow ${workflowId} not found or not active`);
+        }
+        
+        if (phaseIndex < 0 || phaseIndex >= workflowState.phases.length) {
+            throw new Error(`Invalid phase index ${phaseIndex}`);
+        }
+        
+        // Get phase
+        const phase = workflowState.phases[phaseIndex];
+        
+        // Update phase status
+        phase.status = result.success !== false ? 'completed' : 'failed';
+        phase.completedAt = new Date().toISOString();
+        phase.result = result.data || null;
+        phase.error = result.error || null;
+        
+        // Update workflow progress
+        workflowState.progress = Math.round((phaseIndex + 1) / workflowState.phases.length * 100);
+        workflowState.updatedAt = new Date().toISOString();
+        
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
         
         // Emit phase completed event
-        this.emit('phaseCompleted', {
-          executionId,
-          workflowId: execution.workflowId,
-          projectId: execution.projectId,
-          phase: currentPhase,
-          result
-        });
+        this.emit('phaseCompleted', workflowState, phase, result);
         
-        // Move to next phase
-        execution.currentPhaseIndex++;
+        // Check if this is the last phase
+        if (phaseIndex === workflowState.phases.length - 1) {
+            // Complete workflow
+            this.completeWorkflow(workflowId, {
+                success: result.success !== false,
+                data: result.data || null,
+                error: result.error || null
+            });
+        } else if (workflowState.options.autoAdvance && result.success !== false) {
+            // Auto-advance to next phase
+            this.startPhase(workflowId, phaseIndex + 1);
+        }
         
-        // Save workflow
-        this.saveWorkflow(execution.workflowId, workflow);
-        
-        // Execute next phase
-        setImmediate(() => this.executeNextPhase(executionId));
-      } catch (error) {
-        // Phase execution failed
-        currentPhase.status = 'failed';
-        currentPhase.failedAt = new Date().toISOString();
-        currentPhase.error = error.message;
-        
-        // Save workflow
-        this.saveWorkflow(execution.workflowId, workflow);
-        
-        // Log phase failure
-        logger.error(`Failed to execute phase: ${currentPhase.name} - ${error.message}`);
-        this.logExecution(executionId, 'error', `Failed to execute phase: ${currentPhase.name} - ${error.message}`);
-        
-        // Emit phase failed event
-        this.emit('phaseFailed', {
-          executionId,
-          workflowId: execution.workflowId,
-          projectId: execution.projectId,
-          phase: currentPhase,
-          error: error.message
-        });
-        
-        // Fail the workflow execution
-        this.failWorkflowExecution(executionId, error.message);
-      }
-    } catch (error) {
-      logger.error(`Error in executeNextPhase: ${error.message}`);
-      this.failWorkflowExecution(executionId, error.message);
-    }
-  }
-  
-  /**
-   * Execute a specific phase
-   * @param {string} executionId - Execution ID
-   * @param {object} phase - Phase configuration
-   * @returns {Promise<object>} Phase execution result
-   */
-  async executePhase(executionId, phase) {
-    try {
-      const execution = this.activeWorkflows[executionId];
-      
-      // Get template if specified
-      let templateContent = null;
-      if (phase.templateId && this.templates[phase.templateId]) {
-        templateContent = this.processTemplate(phase.templateId, execution.context);
-      }
-      
-      // In a real implementation, this would execute the phase logic
-      // For now, we'll just simulate a delay and return a result
-      
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Return simulated result
-      return {
-        success: true,
-        output: `Simulated output for phase: ${phase.name}`,
-        templateContent,
-        executedAt: new Date().toISOString()
-      };
-    } catch (error) {
-      logger.error(`Failed to execute phase: ${error.message}`);
-      throw error;
-    }
-  }
-  
-  /**
-   * Complete a workflow execution
-   * @param {string} executionId - Execution ID
-   */
-  completeWorkflowExecution(executionId) {
-    try {
-      const execution = this.activeWorkflows[executionId];
-      if (!execution) {
-        throw new Error(`Execution not found: ${executionId}`);
-      }
-      
-      // Update execution status
-      execution.status = 'completed';
-      execution.completedAt = new Date().toISOString();
-      
-      // Log completion
-      logger.info(`Completed workflow execution: ${executionId}`);
-      this.logExecution(executionId, 'info', 'Workflow execution completed');
-      
-      // Emit workflow completed event
-      this.emit('workflowCompleted', {
-        executionId,
-        workflowId: execution.workflowId,
-        projectId: execution.projectId,
-        results: execution.phaseResults
-      });
-    } catch (error) {
-      logger.error(`Failed to complete workflow execution: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Fail a workflow execution
-   * @param {string} executionId - Execution ID
-   * @param {string} errorMessage - Error message
-   */
-  failWorkflowExecution(executionId, errorMessage) {
-    try {
-      const execution = this.activeWorkflows[executionId];
-      if (!execution) {
-        throw new Error(`Execution not found: ${executionId}`);
-      }
-      
-      // Update execution status
-      execution.status = 'failed';
-      execution.failedAt = new Date().toISOString();
-      execution.error = errorMessage;
-      
-      // Log failure
-      logger.error(`Failed workflow execution: ${executionId} - ${errorMessage}`);
-      this.logExecution(executionId, 'error', `Workflow execution failed: ${errorMessage}`);
-      
-      // Emit workflow failed event
-      this.emit('workflowFailed', {
-        executionId,
-        workflowId: execution.workflowId,
-        projectId: execution.projectId,
-        error: errorMessage
-      });
-    } catch (error) {
-      logger.error(`Error in failWorkflowExecution: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Log a message to the execution log
-   * @param {string} executionId - Execution ID
-   * @param {string} level - Log level (info, warn, error)
-   * @param {string} message - Log message
-   */
-  logExecution(executionId, level, message) {
-    try {
-      const execution = this.activeWorkflows[executionId];
-      if (!execution) {
-        return;
-      }
-      
-      // Add log entry
-      execution.logs.push({
-        timestamp: new Date().toISOString(),
-        level,
-        message
-      });
-    } catch (error) {
-      logger.error(`Failed to log execution: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Get the status of a workflow execution
-   * @param {string} executionId - Execution ID
-   * @returns {object} Execution status
-   */
-  getExecutionStatus(executionId) {
-    const execution = this.activeWorkflows[executionId];
-    if (!execution) {
-      return null;
+        return workflowState;
     }
     
-    const workflow = this.getWorkflow(execution.workflowId);
+    /**
+     * Complete a workflow
+     * @param {string} workflowId - Workflow ID
+     * @param {Object} result - Workflow result
+     * @returns {Object} - Updated workflow state
+     */
+    completeWorkflow(workflowId, result = {}) {
+        const workflowState = this.activeWorkflows.get(workflowId);
+        
+        if (!workflowState) {
+            throw new Error(`Workflow ${workflowId} not found or not active`);
+        }
+        
+        // Update workflow status
+        workflowState.status = result.success !== false ? 'completed' : 'failed';
+        workflowState.completedAt = new Date().toISOString();
+        workflowState.result = result.data || null;
+        workflowState.error = result.error || null;
+        workflowState.progress = 100;
+        workflowState.updatedAt = new Date().toISOString();
+        
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
+        
+        // Remove from active workflows
+        this.activeWorkflows.delete(workflowId);
+        
+        // Emit workflow completed event
+        this.emit('workflowCompleted', workflowState, result);
+        
+        // Process next workflow in queue
+        this._processQueue();
+        
+        return workflowState;
+    }
     
-    return {
-      executionId,
-      workflowId: execution.workflowId,
-      workflowName: workflow ? workflow.name : 'Unknown',
-      projectId: execution.projectId,
-      status: execution.status,
-      currentPhase: execution.currentPhaseIndex + 1,
-      totalPhases: workflow ? workflow.phases.length : 0,
-      startedAt: execution.startedAt,
-      completedAt: execution.completedAt,
-      failedAt: execution.failedAt,
-      error: execution.error,
-      phaseResults: execution.phaseResults.length
-    };
-  }
-  
-  /**
-   * Get all active workflow executions
-   * @returns {Array<object>} Active executions
-   */
-  getAllExecutions() {
-    return Object.keys(this.activeWorkflows).map(executionId => 
-      this.getExecutionStatus(executionId)
-    );
-  }
+    /**
+     * Pause a workflow
+     * @param {string} workflowId - Workflow ID
+     * @returns {Object} - Updated workflow state
+     */
+    pauseWorkflow(workflowId) {
+        const workflowState = this.activeWorkflows.get(workflowId);
+        
+        if (!workflowState) {
+            throw new Error(`Workflow ${workflowId} not found or not active`);
+        }
+        
+        // Update workflow status
+        workflowState.status = 'paused';
+        workflowState.pausedAt = new Date().toISOString();
+        workflowState.updatedAt = new Date().toISOString();
+        
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
+        
+        // Emit workflow paused event
+        this.emit('workflowPaused', workflowState);
+        
+        return workflowState;
+    }
+    
+    /**
+     * Resume a workflow
+     * @param {string} workflowId - Workflow ID
+     * @returns {Object} - Updated workflow state
+     */
+    resumeWorkflow(workflowId) {
+        const workflowState = this.activeWorkflows.get(workflowId);
+        
+        if (!workflowState) {
+            throw new Error(`Workflow ${workflowId} not found or not active`);
+        }
+        
+        if (workflowState.status !== 'paused') {
+            throw new Error(`Workflow ${workflowId} is not paused`);
+        }
+        
+        // Update workflow status
+        workflowState.status = 'active';
+        workflowState.resumedAt = new Date().toISOString();
+        workflowState.updatedAt = new Date().toISOString();
+        
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
+        
+        // Emit workflow resumed event
+        this.emit('workflowResumed', workflowState);
+        
+        // Resume current phase
+        const currentPhaseIndex = workflowState.currentPhaseIndex;
+        const currentPhase = workflowState.phases[currentPhaseIndex];
+        
+        if (currentPhase.status === 'active') {
+            // Get full phase configuration
+            const phaseConfig = this.phaseConfigManager.getPhaseById(currentPhase.id);
+            
+            // Re-emit phase started event
+            this.emit('phaseStarted', workflowState, currentPhase, phaseConfig);
+        }
+        
+        return workflowState;
+    }
+    
+    /**
+     * Cancel a workflow
+     * @param {string} workflowId - Workflow ID
+     * @param {string} reason - Cancellation reason
+     * @returns {Object} - Updated workflow state
+     */
+    cancelWorkflow(workflowId, reason = 'User cancelled') {
+        const workflowState = this.activeWorkflows.get(workflowId);
+        
+        if (!workflowState) {
+            throw new Error(`Workflow ${workflowId} not found or not active`);
+        }
+        
+        // Update workflow status
+        workflowState.status = 'cancelled';
+        workflowState.cancelledAt = new Date().toISOString();
+        workflowState.error = reason;
+        workflowState.updatedAt = new Date().toISOString();
+        
+        // Save workflow state
+        this.saveWorkflowState(workflowState);
+        
+        // Remove from active workflows
+        this.activeWorkflows.delete(workflowId);
+        
+        // Emit workflow cancelled event
+        this.emit('workflowCancelled', workflowState, reason);
+        
+        // Process next workflow in queue
+        this._processQueue();
+        
+        return workflowState;
+    }
+    
+    /**
+     * Queue a workflow for execution
+     * @param {string} workflowId - Workflow ID
+     * @param {Object} options - Workflow options
+     * @returns {Object} - Queue entry
+     */
+    queueWorkflow(workflowId, options = {}) {
+        // Get workflow configuration
+        const workflow = this.phaseConfigManager.getWorkflowById(workflowId);
+        
+        if (!workflow) {
+            throw new Error(`Workflow ${workflowId} not found`);
+        }
+        
+        // Create queue entry
+        const queueEntry = {
+            id: uuidv4(),
+            workflowId,
+            options,
+            queuedAt: new Date().toISOString()
+        };
+        
+        // Add to queue
+        this.workflowQueue.push(queueEntry);
+        
+        // Emit workflow queued event
+        this.emit('workflowQueued', queueEntry, workflow);
+        
+        // Process queue
+        this._processQueue();
+        
+        return queueEntry;
+    }
+    
+    /**
+     * Process the workflow queue
+     * @private
+     */
+    _processQueue() {
+        // Check if there are workflows in the queue
+        if (this.workflowQueue.length === 0) {
+            return;
+        }
+        
+        // Get next workflow from queue
+        const queueEntry = this.workflowQueue.shift();
+        
+        // Start workflow
+        try {
+            this.startWorkflow(queueEntry.workflowId, queueEntry.options);
+        } catch (error) {
+            console.error(`Error starting queued workflow ${queueEntry.workflowId}:`, error);
+            
+            // Emit workflow error event
+            this.emit('workflowError', queueEntry, error);
+            
+            // Process next workflow in queue
+            this._processQueue();
+        }
+    }
+    
+    /**
+     * Execute an automated phase
+     * @private
+     * @param {Object} workflowState - Workflow state
+     * @param {Object} phase - Phase state
+     * @param {Object} phaseConfig - Phase configuration
+     */
+    _executeAutomatedPhase(workflowState, phase, phaseConfig) {
+        try {
+            // Execute actions
+            const actions = phaseConfig.actions || [];
+            const results = [];
+            
+            // Process each action
+            for (const action of actions) {
+                const actionResult = this._executeAction(action, workflowState);
+                results.push(actionResult);
+            }
+            
+            // Complete phase
+            this.completePhase(workflowState.id, workflowState.currentPhaseIndex, {
+                success: true,
+                data: results
+            });
+        } catch (error) {
+            console.error(`Error executing automated phase ${phase.id}:`, error);
+            
+            // Complete phase with error
+            this.completePhase(workflowState.id, workflowState.currentPhaseIndex, {
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    /**
+     * Evaluate a conditional phase
+     * @private
+     * @param {Object} workflowState - Workflow state
+     * @param {Object} phase - Phase state
+     * @param {Object} phaseConfig - Phase configuration
+     */
+    _evaluateConditionalPhase(workflowState, phase, phaseConfig) {
+        try {
+            // Get conditions
+            const conditions = phaseConfig.conditions || {};
+            
+            // Evaluate conditions
+            const result = this._evaluateConditions(conditions, workflowState);
+            
+            // Complete phase
+            this.completePhase(workflowState.id, workflowState.currentPhaseIndex, {
+                success: true,
+                data: {
+                    result,
+                    conditions
+                }
+            });
+        } catch (error) {
+            console.error(`Error evaluating conditional phase ${phase.id}:`, error);
+            
+            // Complete phase with error
+            this.completePhase(workflowState.id, workflowState.currentPhaseIndex, {
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    /**
+     * Execute an action
+     * @private
+     * @param {Object} action - Action to execute
+     * @param {Object} workflowState - Workflow state
+     * @returns {Object} - Action result
+     */
+    _executeAction(action, workflowState) {
+        // Process variables in action
+        const processedAction = this._processVariables(action, workflowState.options.variables);
+        
+        // Execute action based on type
+        switch (processedAction.type) {
+            case 'template':
+                return this._executeTemplateAction(processedAction, workflowState);
+                
+            case 'cursor':
+                return this._executeCursorAction(processedAction, workflowState);
+                
+            case 'wait':
+                return this._executeWaitAction(processedAction, workflowState);
+                
+            case 'script':
+                return this._executeScriptAction(processedAction, workflowState);
+                
+            default:
+                throw new Error(`Unknown action type: ${processedAction.type}`);
+        }
+    }
+    
+    /**
+     * Execute a template action
+     * @private
+     * @param {Object} action - Template action
+     * @param {Object} workflowState - Workflow state
+     * @returns {Object} - Action result
+     */
+    _executeTemplateAction(action, workflowState) {
+        // Get template
+        const templateId = action.templateId;
+        const variables = action.variables || workflowState.options.variables || {};
+        
+        // Process template
+        const processedContent = this.templateManager.processTemplate(templateId, variables);
+        
+        if (!processedContent) {
+            throw new Error(`Template ${templateId} not found or processing failed`);
+        }
+        
+        return {
+            type: 'template',
+            templateId,
+            content: processedContent
+        };
+    }
+    
+    /**
+     * Execute a cursor action
+     * @private
+     * @param {Object} action - Cursor action
+     * @param {Object} workflowState - Workflow state
+     * @returns {Object} - Action result
+     */
+    _executeCursorAction(action, workflowState) {
+        const positionId = action.positionId;
+        const actionType = action.actionType || 'move';
+        
+        switch (actionType) {
+            case 'move':
+                // Move cursor to position
+                const moved = this.cursorPositionManager.moveCursorToPosition(positionId, action.options);
+                
+                if (!moved) {
+                    throw new Error(`Failed to move cursor to position ${positionId}`);
+                }
+                
+                return {
+                    type: 'cursor',
+                    actionType: 'move',
+                    positionId,
+                    success: true
+                };
+                
+            case 'click':
+                // Click at position
+                const clicked = this.cursorPositionManager.clickAtPosition(
+                    positionId,
+                    action.button || 'left',
+                    action.doubleClick || false
+                );
+                
+                if (!clicked) {
+                    throw new Error(`Failed to click at position ${positionId}`);
+                }
+                
+                return {
+                    type: 'cursor',
+                    actionType: 'click',
+                    positionId,
+                    success: true
+                };
+                
+            case 'type':
+                // Type text at position
+                const text = action.text || '';
+                const typed = this.cursorPositionManager.typeAtPosition(positionId, text);
+                
+                if (!typed) {
+                    throw new Error(`Failed to type text at position ${positionId}`);
+                }
+                
+                return {
+                    type: 'cursor',
+                    actionType: 'type',
+                    positionId,
+                    text,
+                    success: true
+                };
+                
+            default:
+                throw new Error(`Unknown cursor action type: ${actionType}`);
+        }
+    }
+    
+    /**
+     * Execute a wait action
+     * @private
+     * @param {Object} action - Wait action
+     * @param {Object} workflowState - Workflow state
+     * @returns {Object} - Action result
+     */
+    _executeWaitAction(action, workflowState) {
+        const duration = action.duration || 1000; // Default to 1 second
+        
+        // Wait for specified duration
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve({
+                    type: 'wait',
+                    duration,
+                    success: true
+                });
+            }, duration);
+        });
+    }
+    
+    /**
+     * Execute a script action
+     * @private
+     * @param {Object} action - Script action
+     * @param {Object} workflowState - Workflow state
+     * @returns {Object} - Action result
+     */
+    _executeScriptAction(action, workflowState) {
+        const script = action.script || '';
+        
+        // Create context for script execution
+        const context = {
+            workflowState,
+            variables: workflowState.options.variables || {},
+            result: null,
+            error: null
+        };
+        
+        try {
+            // Execute script
+            const scriptFn = new Function('context', script);
+            context.result = scriptFn(context);
+            
+            return {
+                type: 'script',
+                success: true,
+                result: context.result
+            };
+        } catch (error) {
+            context.error = error.message;
+            
+            return {
+                type: 'script',
+                success: false,
+                error: error.message
+            };
+        }
+    }
+    
+    /**
+     * Evaluate conditions
+     * @private
+     * @param {Object} conditions - Conditions to evaluate
+     * @param {Object} workflowState - Workflow state
+     * @returns {boolean} - Evaluation result
+     */
+    _evaluateConditions(conditions, workflowState) {
+        // Process variables in conditions
+        const processedConditions = this._processVariables(conditions, workflowState.options.variables);
+        
+        // Create context for condition evaluation
+        const context = {
+            workflowState,
+            variables: workflowState.options.variables || {},
+            phases: workflowState.phases,
+            currentPhase: workflowState.phases[workflowState.currentPhaseIndex],
+            result: false
+        };
+        
+        // Evaluate condition expression
+        if (processedConditions.expression) {
+            try {
+                const expressionFn = new Function('context', `return ${processedConditions.expression};`);
+                context.result = expressionFn(context);
+            } catch (error) {
+                console.error(`Error evaluating condition expression: ${error.message}`);
+                context.result = false;
+            }
+        }
+        
+        return context.result;
+    }
+    
+    /**
+     * Process variables in an object
+     * @private
+     * @param {Object} obj - Object to process
+     * @param {Object} variables - Variables to use
+     * @returns {Object} - Processed object
+     */
+    _processVariables(obj, variables) {
+        if (!obj || typeof obj !== 'object') {
+            return obj;
+        }
+        
+        if (Array.isArray(obj)) {
+            return obj.map(item => this._processVariables(item, variables));
+        }
+        
+        const result = {};
+        
+        for (const [key, value] of Object.entries(obj)) {
+            if (typeof value === 'string') {
+                // Replace variables in string
+                result[key] = this._replaceVariables(value, variables);
+            } else if (typeof value === 'object') {
+                // Process nested objects
+                result[key] = this._processVariables(value, variables);
+            } else {
+                // Keep other values as is
+                result[key] = value;
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Replace variables in a string
+     * @private
+     * @param {string} str - String to process
+     * @param {Object} variables - Variables to use
+     * @returns {string} - Processed string
+     */
+    _replaceVariables(str, variables) {
+        if (!str || typeof str !== 'string') {
+            return str;
+        }
+        
+        // Replace variables in the string
+        return str.replace(/\{\{\s*([a-zA-Z0-9_\.]+)\s*\}\}/g, (match, varName) => {
+            // Handle nested variable names (e.g. user.name)
+            const parts = varName.split('.');
+            let value = variables;
+            
+            for (const part of parts) {
+                if (value === undefined || value === null) {
+                    return match; // Keep original if parent is undefined
+                }
+                
+                value = value[part];
+                
+                if (value === undefined) {
+                    return match; // Keep original if variable not found
+                }
+            }
+            
+            return value !== null && value !== undefined ? value : match;
+        });
+    }
+    
+    /**
+     * Get all active workflows
+     * @returns {Array} - Array of active workflow states
+     */
+    getActiveWorkflows() {
+        return Array.from(this.activeWorkflows.values());
+    }
+    
+    /**
+     * Get workflow state
+     * @param {string} workflowId - Workflow ID
+     * @returns {Object|null} - Workflow state or null if not found
+     */
+    getWorkflowState(workflowId) {
+        return this.activeWorkflows.get(workflowId) || null;
+    }
+    
+    /**
+     * Get workflow queue
+     * @returns {Array} - Array of queued workflows
+     */
+    getWorkflowQueue() {
+        return [...this.workflowQueue];
+    }
 }
-
 module.exports = WorkflowManager;
+EOL
