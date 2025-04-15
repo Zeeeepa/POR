@@ -34,25 +34,48 @@ let deplaManager;
 
 // Initialize application
 async function initializeApp() {
-  // Use the directly imported DeplaEnhanced class
-  deplaManager = new DeplaEnhanced();
-  
-  // Start the server
-  app.listen(PORT, () => {
-    logger.info(`Depla Project Manager running on http://localhost:${PORT}`);
-  });
+  try {
+    // Create .env file if it doesn't exist
+    const envPath = path.join(process.cwd(), '.env');
+    if (!fs.existsSync(envPath)) {
+      fs.writeFileSync(envPath, '# Environment variables\n');
+      logger.info('Created empty .env file');
+    }
+    
+    // Use the directly imported DeplaEnhanced class
+    deplaManager = new DeplaEnhanced();
+    
+    // Start the server
+    app.listen(PORT, () => {
+      logger.info(`Depla Project Manager running on http://localhost:${PORT}`);
+    });
+    
+    return deplaManager;
+  } catch (error) {
+    logger.error('Failed to initialize application:', error);
+    throw error;
+  }
 }
 
 // Routes
 app.get('/', async (req, res) => {
-  const { projects } = await deplaManager.initialize();
-  res.render('dashboard', { projects });
+  try {
+    const { projects } = await deplaManager.initialize();
+    res.render('dashboard', { projects });
+  } catch (error) {
+    logger.error('Error rendering dashboard:', error);
+    res.status(500).render('error', { error: 'Failed to load dashboard' });
+  }
 });
 
-// Project routes
 app.get('/projects', async (req, res) => {
-  const { projects } = await deplaManager.initialize();
-  res.render('projects', { projects });
+  try {
+    const { projects } = await deplaManager.initialize();
+    res.render('projects', { projects });
+  } catch (error) {
+    logger.error('Error rendering projects:', error);
+    res.status(500).render('error', { error: 'Failed to load projects' });
+  }
 });
 
 app.get('/projects/:name', async (req, res) => {
