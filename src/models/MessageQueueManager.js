@@ -1,253 +1,148 @@
 /**
  * MessageQueueManager.js
- * Manages message queues for automated input with priority levels
+ * Unified message queue manager that handles message templating and delivery
+ * This replaces both root MessageConveyor.js and src/models/MessageQueueManager.js
  */
 
-const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const fs = require('fs-extra');
 const EventEmitter = require('events');
 const logger = require('../utils/logger');
 
 class MessageQueueManager extends EventEmitter {
+  /**
+   * Initialize the MessageQueueManager
+   * @param {Object} config - Global configuration
+   */
   constructor(config = {}) {
     super();
-    
-    // Default configuration
-    this.config = {
-      priorityLevels: ['high', 'normal', 'low'],
-      maxConcurrentMessages: config.messaging?.maxConcurrentMessages || 3,
-      maxRetries: config.messaging?.maxRetries || 3,
-      defaultDelay: config.messaging?.defaultDelay || 2000,
-      defaultInputPosition: config.messaging?.defaultInputPosition || 'default'
-    };
-    
-    // Override with provided config
-    if (config.messaging) {
-      this.config = {
-        ...this.config,
-        ...config.messaging
-      };
-    }
-    
-    // Initialize queues for each priority level
-    this.queues = {};
-    for (const priority of this.config.priorityLevels) {
-      this.queues[priority] = [];
-    }
-    
-    // Initialize state
-    this.activeMessages = 0;
-    this.processingPaused = false;
-    
-    // Initialize statistics
-    this.stats = {
-      enqueued: 0,
-      processed: 0,
-      failed: 0,
-      retried: 0
-    };
-    
-    // Get cursor automation (will be injected)
+    this.config = config;
     this.cursorAutomation = null;
+    this.templates = {};
+    this.sentMessages = [];
+    this.batchHistory = [];
+    this.activeTransmission = false;
+    this.isPaused = false;
     
-    logger.info('MessageQueueManager initialized');
+    // Initialize queues with different priorities
+    this.queues = {
+      high: [],
+      normal: [],
+      low: []
+    };
+    
+    // Processing state
+    this.isProcessing = false;
+    this.processingTimer = null;
+    
+    // Load message templates
+    this.loadMessageTemplates();
   }
-  
+
   /**
-   * Set cursor automation instance
-   * @param {Object} automation - Cursor automation instance
+   * Set the cursor automation instance
+   * @param {Object} cursorAutomation - Cursor automation instance
    */
-  setCursorAutomation(automation) {
-    this.cursorAutomation = automation;
-    logger.info('Cursor automation set');
+  setCursorAutomation(cursorAutomation) {
+    this.cursorAutomation = cursorAutomation;
+    logger.info('Cursor automation set for message queue manager');
   }
-  
+
   /**
-   * Add a message to the queue
+   * Enqueue a message with priority
    * @param {Object} message - Message to enqueue
    * @param {string} priority - Priority level (high, normal, low)
    * @returns {string} Message ID
    */
   enqueueMessage(message, priority = 'normal') {
-    try {
-      // Validate priority
-      if (!this.queues[priority]) {
-        throw new Error(`Invalid priority: ${priority}`);
-      }
-      
-      // Create message object
-      const queuedMessage = {
-        id: uuidv4(),
-        content: message.content,
-        templateName: message.templateName,
-        templateData: message.templateData,
-        inputPosition: message.inputPosition || this.config.defaultInputPosition,
-        delay: message.delay || this.config.defaultDelay,
-        metadata: message.metadata || {},
-        priority,
-        status: 'queued',
-        attempts: 0,
-        addedAt: new Date().toISOString()
-      };
-      
-      // Add to appropriate queue
-      this.queues[priority].push(queuedMessage);
-      
-      // Update stats
-      this.stats.enqueued++;
-      
-      logger.info(`Enqueued message ${queuedMessage.id} with priority ${priority}`);
-      
-      // Emit event
-      this.emit('messageEnqueued', queuedMessage);
-      
-      // Start processing if not already running
-      setImmediate(() => this.processQueue());
-      
-      return queuedMessage.id;
-    } catch (error) {
-      logger.error(`Failed to enqueue message: ${error.message}`);
-      throw error;
+    if (!this.queues[priority]) {
+      throw new Error(`Invalid priority: ${priority}`);
     }
+    
+    // Create message object with unique ID
+    const queuedMessage = {
+      id: message.id || Date.now().toString(),
+      content: message.content,
+      inputPosition: message.inputPosition || this.config.defaultInputPosition,
+      metadata: message.metadata || {},
+      priority,
+      status: 'queued',
+      enqueuedAt: new Date().toISOString()
+    };
+    
+    // Add to appropriate queue
+    this.queues[priority].push(queuedMessage);
+    
+    logger.info(`Message enqueued with ${priority} priority: ${queuedMessage.id}`);
+    
+    // Start processing if not already running
+    setImmediate(() => this.processQueue());
+    
+    return queuedMessage.id;
   }
-  
+
   /**
-   * Add multiple messages to the queue
-   * @param {Array<Object>} messages - Array of message objects
+   * Enqueue multiple messages with the same priority
+   * @param {Array<Object>} messages - Messages to enqueue
    * @param {string} priority - Priority level (high, normal, low)
-   * @returns {Array<string>} Array of message IDs
+   * @returns {Array<string>} Message IDs
    */
   enqueueMessages(messages, priority = 'normal') {
-    try {
-      const messageIds = [];
-      
-      for (const message of messages) {
-        const id = this.enqueueMessage(message, priority);
-        messageIds.push(id);
-      }
-      
-      logger.info(`Enqueued ${messageIds.length} messages with priority ${priority}`);
-      return messageIds;
-    } catch (error) {
-      logger.error(`Failed to enqueue multiple messages: ${error.message}`);
-      throw error;
+    if (!Array.isArray(messages)) {
+      throw new Error('Messages must be an array');
     }
+    
+    const messageIds = [];
+    
+    for (const message of messages) {
+      const messageId = this.enqueueMessage(message, priority);
+      messageIds.push(messageId);
+    }
+    
+    logger.info(`Enqueued ${messageIds.length} messages with ${priority} priority`);
+    
+    return messageIds;
   }
-  
+
   /**
-   * Process the next message in the queue
+   * Process the message queue
+   * @returns {Promise<void>}
    */
   async processQueue() {
-    // If processing is paused or max concurrent messages reached, do nothing
-    if (this.processingPaused || this.activeMessages >= this.config.maxConcurrentMessages) {
+    // Don't process if paused or already processing
+    if (this.isPaused || this.isProcessing) {
       return;
     }
     
-    // Get the next message from the highest priority queue
-    const nextMessage = this.getNextMessage();
-    
-    if (!nextMessage) {
-      // No messages in queue
-      return;
-    }
-    
-    // Increment active messages counter
-    this.activeMessages++;
+    this.isProcessing = true;
     
     try {
-      // Update message status
-      nextMessage.status = 'processing';
-      nextMessage.processingStartedAt = new Date().toISOString();
-      
-      // Emit event
-      this.emit('messageProcessingStarted', nextMessage);
-      
-      logger.info(`Processing message ${nextMessage.id} (priority: ${nextMessage.priority})`);
-      
-      // Process the message
-      const success = await this.processMessage(nextMessage);
-      
-      if (success) {
-        // Message processed successfully
-        nextMessage.status = 'completed';
-        nextMessage.completedAt = new Date().toISOString();
+      // Process queues in priority order
+      for (const priority of ['high', 'normal', 'low']) {
+        const queue = this.queues[priority];
         
-        // Update stats
-        this.stats.processed++;
-        
-        // Emit event
-        this.emit('messageProcessed', nextMessage);
-        
-        logger.info(`Successfully processed message ${nextMessage.id}`);
-      } else {
-        // Message processing failed
-        nextMessage.attempts++;
-        
-        if (nextMessage.attempts < this.config.maxRetries) {
-          // Retry the message
-          nextMessage.status = 'queued';
+        if (queue.length > 0) {
+          const message = queue.shift();
+          await this.processMessage(message);
           
-          // Re-add to appropriate queue
-          this.queues[nextMessage.priority].push(nextMessage);
-          
-          // Update stats
-          this.stats.retried++;
-          
-          // Emit event
-          this.emit('messageRetried', nextMessage);
-          
-          logger.warn(`Retrying message ${nextMessage.id} (attempt ${nextMessage.attempts}/${this.config.maxRetries})`);
-        } else {
-          // Max retries reached, mark as failed
-          nextMessage.status = 'failed';
-          nextMessage.failedAt = new Date().toISOString();
-          
-          // Update stats
-          this.stats.failed++;
-          
-          // Emit event
-          this.emit('messageFailed', nextMessage);
-          
-          logger.error(`Failed to process message ${nextMessage.id} after ${nextMessage.attempts} attempts`);
+          // After processing one message, exit to allow other operations
+          break;
         }
       }
-    } catch (error) {
-      // Error during processing
-      logger.error(`Error processing message ${nextMessage.id}: ${error.message}`);
       
-      // Mark as failed
-      nextMessage.status = 'failed';
-      nextMessage.failedAt = new Date().toISOString();
-      nextMessage.error = error.message;
-      
-      // Update stats
-      this.stats.failed++;
-      
-      // Emit event
-      this.emit('messageFailed', nextMessage);
-    } finally {
-      // Decrement active messages counter
-      this.activeMessages--;
-      
-      // Continue processing queue
-      setImmediate(() => this.processQueue());
-    }
-  }
-  
-  /**
-   * Get the next message from the highest priority queue
-   * @returns {Object|null} Next message or null if queues are empty
-   */
-  getNextMessage() {
-    // Check queues in priority order
-    for (const priority of this.config.priorityLevels) {
-      if (this.queues[priority].length > 0) {
-        return this.queues[priority].shift();
+      // If there are still messages in the queue, schedule next processing
+      const totalMessages = this.getTotalQueuedMessages();
+      if (totalMessages > 0) {
+        const delay = this.config.messageDelay || 5000;
+        this.processingTimer = setTimeout(() => this.processQueue(), delay);
       }
+    } catch (error) {
+      logger.logError('Error processing message queue', error);
+    } finally {
+      this.isProcessing = false;
     }
-    
-    return null;
   }
-  
+
   /**
    * Process a single message
    * @param {Object} message - Message to process
@@ -255,177 +150,469 @@ class MessageQueueManager extends EventEmitter {
    */
   async processMessage(message) {
     try {
-      // Ensure cursor automation is available
-      if (!this.cursorAutomation) {
-        throw new Error('Cursor automation not set');
-      }
+      logger.info(`Processing message: ${message.id}`);
+      
+      // Update message status
+      message.status = 'processing';
+      message.processingStartedAt = new Date().toISOString();
       
       // Get input position name
       const positionName = message.inputPosition || this.config.defaultInputPosition;
       
-      if (!positionName) {
-        throw new Error('No input position specified for message');
-      }
-      
-      // Prepare message content
-      let content = '';
-      
-      if (typeof message.content === 'string') {
-        content = message.content;
-      } else if (message.templateName && message.templateData) {
-        // In a real implementation, this would use the template engine
-        content = `Template ${message.templateName} with data (placeholder)`;
-      } else {
-        throw new Error('No content or template specified for message');
+      // Check if cursor automation is available
+      if (!this.cursorAutomation) {
+        throw new Error('Cursor automation not set');
       }
       
       // Send the message using cursor automation
+      const content = typeof message.content === 'string' 
+        ? message.content 
+        : JSON.stringify(message.content);
+      
       const success = await this.cursorAutomation.sendTextToPosition(positionName, content);
       
-      if (!success) {
-        throw new Error(`Failed to send text to position ${positionName}`);
-      }
+      // Update message status
+      message.status = success ? 'completed' : 'failed';
+      message.completedAt = new Date().toISOString();
       
-      // Simulate delay between messages (in a real implementation this would be more sophisticated)
-      const delay = message.delay || this.config.defaultDelay;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Keep track of sent messages
+      this.sentMessages.push({
+        ...message,
+        sentAt: new Date().toISOString()
+      });
       
-      return true;
+      // Emit event
+      this.emit('messageProcessed', message);
+      
+      logger.info(`Message processed: ${message.id}`);
+      
+      return success;
     } catch (error) {
-      logger.error(`Error processing message ${message.id}: ${error.message}`);
+      logger.logError(`Failed to process message: ${message.id}`, error);
+      
+      // Update message status
+      message.status = 'failed';
+      message.failedAt = new Date().toISOString();
+      message.error = error.message;
+      
+      // Emit event
+      this.emit('messageFailed', message);
+      
       return false;
     }
   }
-  
+
   /**
    * Pause message processing
    */
   pauseProcessing() {
-    this.processingPaused = true;
+    this.isPaused = true;
+    
+    if (this.processingTimer) {
+      clearTimeout(this.processingTimer);
+      this.processingTimer = null;
+    }
+    
     logger.info('Message processing paused');
-    this.emit('processingPaused');
   }
-  
+
   /**
    * Resume message processing
    */
   resumeProcessing() {
-    this.processingPaused = false;
-    logger.info('Message processing resumed');
-    this.emit('processingResumed');
+    this.isPaused = false;
     
-    // Restart processing
-    setImmediate(() => this.processQueue());
-  }
-  
-  /**
-   * Clear all queues
-   */
-  clearQueues() {
-    for (const priority of this.config.priorityLevels) {
-      this.queues[priority] = [];
+    // Start processing if there are messages in the queue
+    if (this.getTotalQueuedMessages() > 0) {
+      setImmediate(() => this.processQueue());
     }
     
-    logger.info('All message queues cleared');
-    this.emit('queuesCleared');
+    logger.info('Message processing resumed');
   }
-  
+
+  /**
+   * Get the total number of queued messages
+   * @returns {number} Total queued messages
+   */
+  getTotalQueuedMessages() {
+    return Object.values(this.queues).reduce((total, queue) => total + queue.length, 0);
+  }
+
   /**
    * Get queue statistics
    * @returns {Object} Queue statistics
    */
   getQueueStats() {
-    const queueLengths = {};
-    
-    for (const priority of this.config.priorityLevels) {
-      queueLengths[priority] = this.queues[priority].length;
-    }
-    
     return {
-      queued: Object.values(queueLengths).reduce((total, count) => total + count, 0),
-      queuesByPriority: queueLengths,
-      activeMessages: this.activeMessages,
-      processing: !this.processingPaused,
-      processed: this.stats.processed,
-      failed: this.stats.failed,
-      retried: this.stats.retried,
-      totalEnqueued: this.stats.enqueued
+      high: this.queues.high.length,
+      normal: this.queues.normal.length,
+      low: this.queues.low.length,
+      total: this.getTotalQueuedMessages(),
+      isProcessing: this.isProcessing,
+      isPaused: this.isPaused,
+      sentMessages: this.sentMessages.length,
+      batches: this.batchHistory.length
     };
   }
-  
+
   /**
-   * Find a queued message by ID
-   * @param {string} messageId - Message ID to find
-   * @returns {Object|null} Message or null if not found
+   * Send a batch of messages
+   * @param {Array<Object>} messages - Messages to send
+   * @param {string} batchName - Name for this batch
+   * @param {number} delay - Delay between messages in ms
+   * @returns {Promise<Object>} Batch result
    */
-  findQueuedMessage(messageId) {
-    for (const priority of this.config.priorityLevels) {
-      const message = this.queues[priority].find(m => m.id === messageId);
-      if (message) {
-        return message;
-      }
+  async sendBatch(messages, batchName = '', delay = null) {
+    // Don't send a batch while another is in progress
+    if (this.activeTransmission) {
+      throw new Error('Another batch is currently being transmitted');
     }
     
-    return null;
-  }
-  
-  /**
-   * Remove a message from the queue
-   * @param {string} messageId - Message ID to remove
-   * @returns {boolean} Success status
-   */
-  removeMessage(messageId) {
-    for (const priority of this.config.priorityLevels) {
-      const index = this.queues[priority].findIndex(m => m.id === messageId);
-      if (index !== -1) {
-        this.queues[priority].splice(index, 1);
-        logger.info(`Removed message ${messageId} from ${priority} queue`);
-        this.emit('messageRemoved', messageId);
-        return true;
+    try {
+      this.activeTransmission = true;
+      const batchId = Date.now().toString();
+      
+      // Record the batch
+      this.batchHistory.push({
+        id: batchId,
+        name: batchName || `Batch ${this.batchHistory.length + 1}`,
+        messageCount: messages.length,
+        delay: delay || this.config.messageDelay || 5000,
+        startedAt: new Date().toISOString(),
+        status: 'In Progress'
+      });
+      
+      // Enqueue messages in the batch
+      const messageIds = [];
+      for (const message of messages) {
+        const messageId = this.enqueueMessage({
+          ...message,
+          batchId: batchId
+        }, 'normal');
+        
+        messageIds.push(messageId);
       }
+      
+      // Mark batch as queued
+      const batchIndex = this.batchHistory.findIndex(b => b.id === batchId);
+      if (batchIndex !== -1) {
+        this.batchHistory[batchIndex].status = 'queued';
+        this.batchHistory[batchIndex].messageIds = messageIds;
+      }
+      
+      this.activeTransmission = false;
+      logger.info(`Batch ${batchId} queued with ${messageIds.length} messages`);
+      
+      return {
+        batchId: batchId,
+        status: 'queued',
+        messageCount: messages.length,
+        messageIds,
+        estimatedTime: messages.length * ((delay || this.config.messageDelay || 5000) / 1000)
+      };
+    } catch (error) {
+      logger.logError('Failed to send batch', error);
+      this.activeTransmission = false;
+      throw error;
+    }
+  }
+
+  /**
+   * Load message templates from the templates directory
+   * @returns {Object} Loaded templates
+   */
+  loadMessageTemplates() {
+    try {
+      const templatesDir = path.join(process.cwd(), 'templates');
+      
+      if (!fs.existsSync(templatesDir)) {
+        fs.mkdirSync(templatesDir, { recursive: true });
+      }
+      
+      const files = fs.readdirSync(templatesDir);
+      const templateFiles = files.filter(file => file.endsWith('.message.template'));
+      
+      for (const file of templateFiles) {
+        const templateName = file.replace('.message.template', '');
+        const templateContent = fs.readFileSync(path.join(templatesDir, file), 'utf8');
+        this.templates[templateName] = templateContent;
+      }
+      
+      logger.info(`Loaded ${Object.keys(this.templates).length} message templates`);
+      
+      // Create default template if none exist
+      if (Object.keys(this.templates).length === 0) {
+        this.createDefaultTemplate();
+      }
+      
+      return this.templates;
+    } catch (error) {
+      logger.logError('Failed to load message templates', error);
+      this.createDefaultTemplate();
+      return this.templates;
+    }
+  }
+
+  /**
+   * Create a default message template
+   */
+  createDefaultTemplate() {
+    try {
+      const defaultTemplate = `Implement the {component} for {project} project.
+
+Please follow these guidelines:
+- Ensure that the implementation matches the requirements
+- Write clean, maintainable code
+- Include appropriate tests
+- Document your code appropriately
+
+{project} is an important project, and this component is a key part of it.`;
+      
+      const templatesDir = path.join(process.cwd(), 'templates');
+      if (!fs.existsSync(templatesDir)) {
+        fs.mkdirSync(templatesDir, { recursive: true });
+      }
+      
+      fs.writeFileSync(path.join(templatesDir, 'default.message.template'), defaultTemplate);
+      this.templates.default = defaultTemplate;
+      
+      logger.info('Created default message template');
+    } catch (error) {
+      logger.logError('Failed to create default template', error);
+    }
+  }
+
+  /**
+   * Get the list of template names
+   * @returns {Array<string>} Template names
+   */
+  getTemplateNames() {
+    return Object.keys(this.templates);
+  }
+
+  /**
+   * Get a specific template content
+   * @param {string} name - Template name
+   * @returns {string} Template content
+   */
+  getTemplate(name) {
+    return this.templates[name] || this.templates.default;
+  }
+
+  /**
+   * Create a new template
+   * @param {string} name - Template name
+   * @param {string} content - Template content
+   * @returns {boolean} Success
+   */
+  createTemplate(name, content) {
+    try {
+      const templatesDir = path.join(process.cwd(), 'templates');
+      if (!fs.existsSync(templatesDir)) {
+        fs.mkdirSync(templatesDir, { recursive: true });
+      }
+      
+      const fileName = `${name}.message.template`;
+      fs.writeFileSync(path.join(templatesDir, fileName), content);
+      this.templates[name] = content;
+      
+      logger.info(`Created message template: ${name}`);
+      return true;
+    } catch (error) {
+      logger.logError(`Failed to create template ${name}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Update an existing template
+   * @param {string} name - Template name
+   * @param {string} content - New template content
+   * @returns {boolean} Success
+   */
+  updateTemplate(name, content) {
+    if (!this.templates[name]) {
+      return this.createTemplate(name, content);
     }
     
-    logger.warn(`Message ${messageId} not found in any queue`);
-    return false;
+    try {
+      const templatesDir = path.join(process.cwd(), 'templates');
+      const fileName = `${name}.message.template`;
+      fs.writeFileSync(path.join(templatesDir, fileName), content);
+      this.templates[name] = content;
+      
+      logger.info(`Updated message template: ${name}`);
+      return true;
+    } catch (error) {
+      logger.logError(`Failed to update template ${name}`, error);
+      return false;
+    }
   }
-  
+
   /**
-   * Change the priority of a queued message
-   * @param {string} messageId - Message ID to change
-   * @param {string} newPriority - New priority level
-   * @returns {boolean} Success status
+   * Delete a template
+   * @param {string} name - Template name
+   * @returns {boolean} Success
    */
-  changeMessagePriority(messageId, newPriority) {
-    // Ensure new priority is valid
-    if (!this.queues[newPriority]) {
-      logger.error(`Invalid priority: ${newPriority}`);
+  deleteTemplate(name) {
+    if (name === 'default') {
+      logger.error('Cannot delete the default template');
       return false;
     }
     
-    // Find and remove the message from its current queue
-    let message = null;
-    
-    for (const priority of this.config.priorityLevels) {
-      const index = this.queues[priority].findIndex(m => m.id === messageId);
-      if (index !== -1) {
-        message = this.queues[priority].splice(index, 1)[0];
-        break;
-      }
-    }
-    
-    if (!message) {
-      logger.warn(`Message ${messageId} not found in any queue`);
+    if (!this.templates[name]) {
+      logger.error(`Template ${name} does not exist`);
       return false;
     }
     
-    // Update priority and add to new queue
-    message.priority = newPriority;
-    this.queues[newPriority].push(message);
+    try {
+      const templatesDir = path.join(process.cwd(), 'templates');
+      const fileName = `${name}.message.template`;
+      fs.unlinkSync(path.join(templatesDir, fileName));
+      delete this.templates[name];
+      
+      logger.info(`Deleted message template: ${name}`);
+      return true;
+    } catch (error) {
+      logger.logError(`Failed to delete template ${name}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Send a message using a template
+   * @param {Object} project - Project object
+   * @param {Object} component - Component to implement
+   * @param {string} templateName - Template to use
+   * @returns {Promise<boolean>} Success
+   */
+  async sendTemplatedMessage(project, component, templateName = 'default') {
+    try {
+      // Get the template content
+      const template = this.getTemplate(templateName);
+      
+      // Replace placeholders
+      let messageContent = template
+        .replace(/\{component\}/g, component.name)
+        .replace(/\{project\}/g, project.config.name);
+      
+      // Get the requirements if available
+      if (project.requirements && project.requirements.length > 0) {
+        const relevantRequirements = project.requirements
+          .filter(req => 
+            component.name.toLowerCase().includes(req.text.toLowerCase()) ||
+            req.text.toLowerCase().includes(component.name.toLowerCase())
+          )
+          .map(req => `- ${req.text}`)
+          .join('\n');
+        
+        if (relevantRequirements) {
+          messageContent += `\n\nRelevant requirements:\n${relevantRequirements}`;
+        }
+      }
+      
+      // Create the message object
+      const message = {
+        content: messageContent,
+        inputPosition: this.config.defaultInputPosition,
+        metadata: {
+          projectId: project.config.name,
+          component: component.name,
+          template: templateName
+        }
+      };
+      
+      // Enqueue the message
+      const messageId = this.enqueueMessage(message, 'normal');
+      
+      return true;
+    } catch (error) {
+      logger.logError('Failed to send templated message', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create a batch of messages for components from a project phase
+   * @param {Object} project - Project object
+   * @param {number} phase - Phase index to create messages for
+   * @returns {Array<Object>} Generated messages
+   */
+  async createComponentBatch(project, phase) {
+    try {
+      const components = [];
+      
+      // If a specific phase is provided, only get components from that phase
+      if (phase !== undefined) {
+        const phaseIndex = parseInt(phase) - 1;
+        if (phaseIndex >= 0 && phaseIndex < project.phases.length) {
+          const phaseObj = project.phases[phaseIndex];
+          phaseObj.components.forEach(comp => {
+            if (!comp.isComplete && comp.send) {
+              components.push({
+                ...comp,
+                phase: phaseIndex + 1,
+                phaseName: phaseObj.name
+              });
+            }
+          });
+        }
+      } else {
+        // Get components from all phases
+        project.phases.forEach((phaseObj, phaseIndex) => {
+          phaseObj.components.forEach(comp => {
+            if (!comp.isComplete && comp.send) {
+              components.push({
+                ...comp,
+                phase: phaseIndex + 1,
+                phaseName: phaseObj.name
+              });
+            }
+          });
+        });
+      }
+      
+      logger.info(`Found ${components.length} components to include in batch`);
+      return components;
+    } catch (error) {
+      logger.logError('Failed to create component batch', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get the list of completed batches
+   * @returns {Array<Object>} Completed batches
+   */
+  getCompletedBatches() {
+    return this.batchHistory.filter(batch => batch.status === 'completed');
+  }
+
+  /**
+   * Get the currently active batch if any
+   * @returns {Object|null} Active batch or null
+   */
+  getActiveBatch() {
+    return this.batchHistory.find(batch => batch.status === 'In Progress');
+  }
+
+  /**
+   * Get sent messages organized by batch
+   * @returns {Object} Messages by batch
+   */
+  getFlattenedBatchMessages() {
+    const sentByBatch = {};
     
-    logger.info(`Changed priority of message ${messageId} to ${newPriority}`);
-    this.emit('messagePriorityChanged', message);
+    for (const message of this.sentMessages) {
+      if (message.batchId) {
+        if (!sentByBatch[message.batchId]) {
+          sentByBatch[message.batchId] = [];
+        }
+        sentByBatch[message.batchId].push(message);
+      }
+    }
     
-    return true;
+    return sentByBatch;
   }
 }
 

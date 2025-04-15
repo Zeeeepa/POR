@@ -1,12 +1,13 @@
 /**
- * GitHub Utilities Index
- * Exports all GitHub utility modules
+ * Unified GitHub integration module
+ * This exports all GitHub-related functionality from a single entry point
  */
 
+const GitHubEnhanced = require('../GitHubEnhanced');
 const webhookUtils = require('./webhookUtils');
-const GitHubWebhookManager = require('../WebhookManager');
 
+// Export all GitHub-related components
 module.exports = {
-  webhookUtils,
-  GitHubWebhookManager
+  GitHubEnhanced,
+  webhookUtils
 };
