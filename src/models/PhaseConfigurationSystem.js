@@ -13,27 +13,25 @@ class PhaseConfigurationSystem {
    * Initialize the Phase Configuration System
    * @param {Object} options - Configuration options passed to PhaseConfigManager
    */
-  constructor(options = {}) {
+  constructor(options) {
     this.manager = new PhaseConfigManager(options);
-    this.templates = new Map(); // Store phase templates
-    logger.info('PhaseConfigurationSystem initialized');
   }
   /**
    * Create a new phase for a project.
    * @param {string} projectId - The ID of the project.
-   * @param {Object} phaseData - Data for the new phase.
+   * @param {Object} phase - Data for the new phase.
    * @returns {Promise<Object>} The created phase object.
    * @throws {AppError} If validation fails or creation fails.
    */
-  async createPhase(projectId, phaseData) {
-    logger.debug(`Creating phase for project ${projectId}`, { phaseData });
+  async createPhase(projectId, phase) {
+    logger.debug(`Creating phase for project ${projectId}`, { phase });
     try {
       // Basic validation
-      if (!projectId || !phaseData || !phaseData.name) {
+      if (!projectId || !phase || !phase.name) {
         throw new AppError('Project ID and phase name are required', ErrorTypes.VALIDATION, StatusCodes.BAD_REQUEST);
       }
       // Add projectId to phase data if not present
-      const phaseToCreate = { ...phaseData, projectId };
+      const phaseToCreate = { ...phase, projectId };
       // Use the manager to create the phase
       const createdPhase = this.manager.createPhase(phaseToCreate);
       // Invalidate relevant cache entries
@@ -479,7 +477,7 @@ class PhaseConfigurationSystem {
       }
       // Store the template (in memory for this example, could be persisted)
       const templateData = { ...phaseConfig, templateName: name }; // Add template name for reference
-      this.templates.set(name, templateData);
+      this.manager.createPhase(templateData);
       logger.info(`Phase template "${name}" saved successfully.`);
       return templateData;
     } catch (error) {
@@ -488,7 +486,7 @@ class PhaseConfigurationSystem {
       throw new AppError('Failed to set phase template', ErrorTypes.INTERNAL, StatusCodes.INTERNAL_SERVER_ERROR, { originalError: error.message });
     }
   }
-   /**
+  /**
    * Get a phase template by name.
    * @param {string} name - The name of the template.
    * @returns {Promise<Object>} The template configuration.
