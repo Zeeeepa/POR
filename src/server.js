@@ -25,16 +25,21 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Set up view engine
+// Set up view engine for server-side templates
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Middleware
+// Serve static files from the React app build directory in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../build')));
+}
+
+// Serve static files for development
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// Initialize DeplaEnhanced
+// Initialize managers
 let deplaManager;
 let githubClient;
 let templateManager;
@@ -645,6 +650,13 @@ app.post('/settings/reset', async (req, res) => {
   deplaManager.config = deplaManager.configManager.getConfig();
   res.redirect('/settings');
 });
+
+// Serve React app for all other routes in production
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../build/index.html'));
+  });
+}
 
 // Initialize the application
 if (require.main === module) {
