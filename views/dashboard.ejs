@@ -6,48 +6,7 @@
   <title>Depla Project Manager</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-  <style>
-    .project-card {
-      transition: transform 0.2s;
-    }
-    .project-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    .add-project-card {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      cursor: pointer;
-      border: 2px dashed #dee2e6;
-    }
-    .add-project-card:hover {
-      background-color: #f8f9fa;
-    }
-    .phase-indicator {
-      display: flex;
-      gap: 4px;
-      margin-top: 10px;
-    }
-    .phase-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background-color: #dee2e6;
-    }
-    .phase-dot.active {
-      background-color: #0d6efd;
-    }
-    .phase-dot.complete {
-      background-color: #198754;
-    }
-    .template-status {
-      font-size: 0.875rem;
-      margin-bottom: 10px;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/shared.css">
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -121,12 +80,7 @@
                 </div>
               </div>
 
-              <div class="phase-indicator mb-3">
-                <% for(let i = 0; i < (project.config.totalPhases || 4); i++) { %>
-                  <div class="phase-dot <%= i < (project.config.completedPhases || 0) ? 'complete' : i === (project.config.currentPhaseIndex || -1) ? 'active' : '' %>"
-                       title="Phase <%= i + 1 %>"></div>
-                <% } %>
-              </div>
+              <%- include('partials/phase-indicator') %>
 
               <div class="progress mb-3">
                 <div class="progress-bar" role="progressbar" 
@@ -188,27 +142,7 @@
               <label for="repoUrl" class="form-label">Repository URL</label>
               <input type="text" class="form-control" id="repoUrl" name="repoUrl" placeholder="https://github.com/username/repo.git" required>
             </div>
-            <div class="mb-3">
-              <label class="form-label">Initialization Templates</label>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="structureTemplate" name="templates[]" value="structure" checked>
-                <label class="form-check-label" for="structureTemplate">
-                  Project Structure Analysis
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="featureTemplate" name="templates[]" value="features" checked>
-                <label class="form-check-label" for="featureTemplate">
-                  Feature Suggestions
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="stepsTemplate" name="templates[]" value="steps" checked>
-                <label class="form-check-label" for="stepsTemplate">
-                  Development Steps
-                </label>
-              </div>
-            </div>
+            <%- include('partials/template-selection', {prefix: ''}) %>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -233,27 +167,7 @@
               <label for="githubUsername" class="form-label">GitHub Username/Organization</label>
               <input type="text" class="form-control" id="githubUsername" name="githubUsername" required>
             </div>
-            <div class="mb-3">
-              <label class="form-label">Default Templates</label>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="batchStructureTemplate" name="templates[]" value="structure" checked>
-                <label class="form-check-label" for="batchStructureTemplate">
-                  Project Structure Analysis
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="batchFeatureTemplate" name="templates[]" value="features" checked>
-                <label class="form-check-label" for="batchFeatureTemplate">
-                  Feature Suggestions
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="batchStepsTemplate" name="templates[]" value="steps" checked>
-                <label class="form-check-label" for="batchStepsTemplate">
-                  Development Steps
-                </label>
-              </div>
-            </div>
+            <%- include('partials/template-selection', {prefix: 'batch'}) %>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -267,7 +181,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     function initializeProject(projectName) {
-      // Add initialization logic here
       fetch(`/projects/${projectName}/initialize`, {
         method: 'POST'
       }).then(response => {
