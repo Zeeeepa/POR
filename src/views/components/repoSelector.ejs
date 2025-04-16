@@ -1,0 +1,105 @@
+<div class="repo-selector">
+  <div class="form-group">
+    <label for="repoSelect">Select Repository</label>
+    <select id="repoSelect" name="repoUrl" class="form-control" required>
+      <option value="">Loading repositories...</option>
+    </select>
+  </div>
+  <div id="repoDetails" class="repo-details" style="display: none;">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Repository Details</h5>
+        <p class="card-text" id="repoDescription"></p>
+        <p class="card-text">
+          <small class="text-muted">Last updated: <span id="repoUpdated"></span></small>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadRepositories() {
+  try {
+    const response = await fetch('/api/github/repositories');
+    const data = await response.json();
+    
+    if (data.success) {
+      const select = document.getElementById('repoSelect');
+      select.innerHTML = '<option value="">Select a repository...</option>';
+      
+      data.repositories.forEach(repo => {
+        const option = document.createElement('option');
+        option.value = repo.html_url;
+        option.textContent = repo.full_name;
+        option.dataset.description = repo.description || 'No description available';
+        option.dataset.updated = new Date(repo.updated_at).toLocaleDateString();
+        select.appendChild(option);
+      });
+      
+      // Add event listener for repository selection
+      select.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const repoDetails = document.getElementById('repoDetails');
+        const repoDescription = document.getElementById('repoDescription');
+        const repoUpdated = document.getElementById('repoUpdated');
+        
+        if (this.value) {
+          repoDescription.textContent = selectedOption.dataset.description;
+          repoUpdated.textContent = selectedOption.dataset.updated;
+          repoDetails.style.display = 'block';
+        } else {
+          repoDetails.style.display = 'none';
+        }
+      });
+    } else {
+      throw new Error('Failed to load repositories');
+    }
+  } catch (error) {
+    console.error('Error loading repositories:', error);
+    const select = document.getElementById('repoSelect');
+    select.innerHTML = '<option value="">Error loading repositories. Please check your GitHub token.</option>';
+  }
+}
+
+// Load repositories when the page loads
+document.addEventListener('DOMContentLoaded', loadRepositories);
+</script>
+
+<style>
+.repo-selector {
+  margin-bottom: 2rem;
+}
+
+.repo-details {
+  margin-top: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+}
+
+.card {
+  border: 1px solid rgba(0,0,0,.125);
+  border-radius: 0.25rem;
+}
+
+.card-body {
+  padding: 1rem;
+}
+
+.card-title {
+  margin-bottom: 0.75rem;
+}
+
+.text-muted {
+  color: #6c757d;
+}
+</style>
