@@ -141,6 +141,180 @@
     </div>
   </div>
 
+  <div class="settings-container">
+    <!-- Input Configuration -->
+    <div class="settings-section">
+      <h2>Input Configuration</h2>
+      <div class="input-locations">
+        <h3>Input Locations</h3>
+        <div class="location-list" id="locationList">
+          <!-- Input locations will be listed here -->
+        </div>
+        <button id="addLocationBtn" class="btn btn-primary">Add Input Location</button>
+      </div>
+    </div>
+
+    <!-- Template Management -->
+    <div class="settings-section">
+      <h2>Template Management</h2>
+      
+      <!-- Template Categories -->
+      <div class="template-categories">
+        <h3>Template Categories</h3>
+        <div class="category-list">
+          <div class="category-item">
+            <h4>Initialization Templates</h4>
+            <div class="template-list" id="initTemplates">
+              <!-- Init templates listed here -->
+            </div>
+          </div>
+          <div class="category-item">
+            <h4>Feature Development Templates</h4>
+            <div class="template-list" id="featureTemplates">
+              <!-- Feature templates listed here -->
+            </div>
+          </div>
+          <div class="category-item">
+            <h4>Validation Templates</h4>
+            <div class="template-list" id="validationTemplates">
+              <!-- Validation templates listed here -->
+            </div>
+          </div>
+          <div class="category-item">
+            <h4>Refinement Templates</h4>
+            <div class="template-list" id="refinementTemplates">
+              <!-- Refinement templates listed here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Template Variables -->
+      <div class="template-variables">
+        <h3>Template Variables</h3>
+        <div class="variable-list" id="variableList">
+          <!-- Variables will be listed here -->
+        </div>
+        <button id="addVariableBtn" class="btn btn-secondary">Add Variable</button>
+      </div>
+    </div>
+
+    <!-- Phase Configuration -->
+    <div class="settings-section">
+      <h2>Phase Configuration</h2>
+      
+      <!-- Default Phase Settings -->
+      <div class="phase-defaults">
+        <h3>Default Phase Settings</h3>
+        <form id="phaseDefaultsForm">
+          <div class="form-group">
+            <label>Auto-merge Threshold</label>
+            <input type="number" id="autoMergeThreshold" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Maximum Concurrent Features</label>
+            <input type="number" id="maxConcurrentFeatures" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Default Code Analysis</label>
+            <div class="toggle-switch">
+              <input type="checkbox" id="defaultCodeAnalysis">
+              <span class="toggle-label">Enable by default</span>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Phase Templates -->
+      <div class="phase-templates">
+        <h3>Phase Templates</h3>
+        <div class="template-list" id="phaseTemplates">
+          <!-- Phase templates listed here -->
+        </div>
+        <button id="addPhaseTemplateBtn" class="btn btn-secondary">Add Phase Template</button>
+      </div>
+    </div>
+
+    <!-- GitHub Integration -->
+    <div class="settings-section">
+      <h2>GitHub Integration</h2>
+      
+      <!-- Repository Settings -->
+      <div class="repo-settings">
+        <h3>Repository Settings</h3>
+        <form id="repoSettingsForm">
+          <div class="form-group">
+            <label>Default Branch</label>
+            <input type="text" id="defaultBranch" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>PR Naming Convention</label>
+            <input type="text" id="prNamingConvention" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Auto-merge Rules</label>
+            <textarea id="autoMergeRules" class="form-control"></textarea>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Location Modal -->
+  <div id="inputLocationModal" class="modal">
+    <div class="modal-content">
+      <h3>Configure Input Location</h3>
+      <form id="locationForm">
+        <div class="form-group">
+          <label>Location Name</label>
+          <input type="text" id="locationName" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>X Coordinate</label>
+          <input type="number" id="xCoord" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Y Coordinate</label>
+          <input type="number" id="yCoord" class="form-control" required>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Save Location</button>
+          <button type="button" class="btn btn-secondary" id="cancelLocation">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Template Editor Modal -->
+  <div id="templateEditorModal" class="modal">
+    <div class="modal-content">
+      <h3>Edit Template</h3>
+      <form id="templateForm">
+        <div class="form-group">
+          <label>Template Name</label>
+          <input type="text" id="templateName" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="templateCategory" class="form-select" required>
+            <option value="init">Initialization</option>
+            <option value="feature">Feature Development</option>
+            <option value="validation">Validation</option>
+            <option value="refinement">Refinement</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Template Content</label>
+          <textarea id="templateContent" class="form-control" required></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Save Template</button>
+          <button type="button" class="btn btn-secondary" id="cancelTemplate">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
