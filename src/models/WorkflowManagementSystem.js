@@ -3,6 +3,10 @@ const WorkflowManager = require('./WorkflowManager');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./logger'); // Assuming a logger module is available
+const AppError = require('./AppError'); // Assuming an AppError module is available
+const StatusCodes = require('./StatusCodes'); // Assuming a StatusCodes module is available
+const ErrorTypes = require('./ErrorTypes'); // Assuming an ErrorTypes module is available
 
 class WorkflowManagementSystem extends WorkflowManager {
     constructor(options) {
@@ -10,10 +14,16 @@ class WorkflowManagementSystem extends WorkflowManager {
     }
 
     async createWorkflow(name, steps, options) {
-        const workflowId = uuidv4();
-        const workflow = { id: workflowId, name, steps, options };
-        this.saveWorkflowState(workflow);
-        return workflow;
+        try {
+            const workflowId = uuidv4();
+            const workflow = { id: workflowId, name, steps, options };
+            this.saveWorkflowState(workflow);
+            logger.info(`Workflow created successfully: ${workflowId}`);
+            return workflow;
+        } catch (error) {
+            logger.error(`Failed to create workflow: ${error.message}`);
+            throw new AppError('Workflow creation failed', ErrorTypes.INTERNAL, StatusCodes.INTERNAL_SERVER_ERROR, { originalError: error.message });
+        }
     }
 
     async deleteWorkflow(id) {
@@ -22,7 +32,14 @@ class WorkflowManagementSystem extends WorkflowManager {
     }
 
     async getWorkflow(id) {
-        return this.getWorkflowState(id);
+        if (this.cache.has(id)) {
+            logger.debug(`Cache hit for workflow ${id}`);
+            return this.cache.get(id);
+        }
+        const workflow = this.getWorkflowState(id);
+        this.cache.set(id, workflow);
+        logger.debug(`Cache miss for workflow ${id}, loaded from state`);
+        return workflow;
     }
 
     async listWorkflows(options) {
