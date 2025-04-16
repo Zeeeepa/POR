@@ -9,17 +9,26 @@ const logger = require('./logger');
 class GitHubEnhanced {
   constructor() {
     this.octokit = null;
-    this.initializeClient();
+    this.initialized = false;
   }
 
   async initializeClient() {
     try {
       const token = await tokenStorage.getToken();
       if (token) {
-        this.octokit = new Octokit({ auth: token });
-        logger.info('GitHub client initialized successfully');
+        // Validate token before using it
+        if (await tokenStorage.validateToken(token)) {
+          this.octokit = new Octokit({ auth: token });
+          this.initialized = true;
+          logger.info('Authenticated with GitHub as ' + (await this.getUserInfo()).login);
+          return true;
+        } else {
+          logger.warn('GitHub token is invalid. Please provide a valid token.');
+          return false;
+        }
       } else {
-        logger.warn('GitHub token not found or invalid. Please provide a valid token.');
+        logger.warn('GitHub token not found. Please provide a valid token.');
+        return false;
       }
     } catch (error) {
       logger.error('Failed to initialize GitHub client:', error);
@@ -29,19 +38,29 @@ class GitHubEnhanced {
 
   async setToken(token) {
     try {
-      // Validate token by making a test API call
-      const testClient = new Octokit({ auth: token });
-      await testClient.users.getAuthenticated();
-
-      // If successful, save token and update client
-      await tokenStorage.saveToken(token);
-      this.octokit = testClient;
-      logger.info('GitHub token updated successfully');
-      return true;
+      // Validate token before saving
+      if (await tokenStorage.validateToken(token)) {
+        // Save token and update client
+        await tokenStorage.saveToken(token);
+        this.octokit = new Octokit({ auth: token });
+        this.initialized = true;
+        const user = await this.getUserInfo();
+        logger.info('Authenticated with GitHub as ' + user.login);
+        return true;
+      }
+      return false;
     } catch (error) {
-      logger.error('Invalid GitHub token:', error);
+      logger.error('Failed to set GitHub token:', error);
       return false;
     }
+  }
+
+  async getUserInfo() {
+    if (!this.octokit) {
+      throw new Error('GitHub client not initialized. Please provide a valid token.');
+    }
+    const { data } = await this.octokit.users.getAuthenticated();
+    return data;
   }
 
   async getUserRepositories(options = {}) {
@@ -64,7 +83,9 @@ class GitHubEnhanced {
     }
   }
 
-  // Add other GitHub-related methods here
+  isInitialized() {
+    return this.initialized && this.octokit !== null;
+  }
 }
 
 module.exports = GitHubEnhanced;

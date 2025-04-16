@@ -4,6 +4,7 @@
 
 const fs = require('fs-extra');
 const path = require('path');
+const logger = require('./logger');
 
 class TokenStorage {
   constructor() {
@@ -23,13 +24,15 @@ class TokenStorage {
         const envContent = await fs.readFile(this.tokenFile, 'utf8');
         const match = envContent.match(/GITHUB_TOKEN=(.+)/);
         if (match) {
+          // Update process.env with the token from file
+          process.env.GITHUB_TOKEN = match[1];
           return match[1];
         }
       }
 
       return null;
     } catch (error) {
-      console.error('Error reading GitHub token:', error);
+      logger.error('Error reading GitHub token:', error);
       return null;
     }
   }
@@ -60,9 +63,22 @@ class TokenStorage {
       // Update process.env
       process.env.GITHUB_TOKEN = token;
 
+      logger.info('GitHub token saved to .env file');
       return true;
     } catch (error) {
-      console.error('Error saving GitHub token:', error);
+      logger.error('Error saving GitHub token:', error);
+      return false;
+    }
+  }
+
+  async validateToken(token) {
+    try {
+      const { Octokit } = require('@octokit/rest');
+      const testClient = new Octokit({ auth: token });
+      await testClient.users.getAuthenticated();
+      return true;
+    } catch (error) {
+      logger.error('Invalid GitHub token:', error);
       return false;
     }
   }
