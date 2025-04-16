@@ -29,9 +29,35 @@ const PORT = process.env.PORT || 3000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Middleware to ensure GitHub is initialized
+const ensureGitHubInitialized = async (req, res, next) => {
+  if (!githubClient || !githubClient.isInitialized()) {
+    try {
+      await githubClient.initializeClient();
+      if (!githubClient.isInitialized()) {
+        return res.status(401).json({
+          success: false,
+          error: 'GitHub authentication required',
+          needsAuth: true
+        });
+      }
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        error: error.message,
+        needsAuth: true
+      });
+    }
+  }
+  next();
+};
+
 // Serve static files from the React app build directory in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../build')));
+} else {
+  // In development, serve from client's public directory
+  app.use(express.static(path.join(__dirname, 'client/public')));
 }
 
 // Serve static files for development
@@ -49,23 +75,105 @@ let workflowManager;
 
 // Initialize application
 async function initializeApp() {
-  // Initialize GitHub client
-  githubClient = new GitHubEnhanced();
-  
-  // Use the directly imported DeplaEnhanced class
-  deplaManager = new DeplaEnhanced();
-  
-  // Initialize new managers
-  templateManager = new TemplateManager();
-  cursorPositionManager = new CursorPositionManager();
-  phaseConfigManager = new PhaseConfigManager();
-  workflowManager = new WorkflowManager();
-  
-  // Start the server
-  app.listen(PORT, () => {
-    logger.info(`Depla Project Manager running on http://localhost:${PORT}`);
-  });
+  try {
+    // Initialize GitHub client first
+    githubClient = new GitHubEnhanced();
+    const githubInitialized = await githubClient.initializeClient();
+    
+    // Initialize other managers
+    deplaManager = new DeplaEnhanced();
+    templateManager = new TemplateManager();
+    cursorPositionManager = new CursorPositionManager();
+    phaseConfigManager = new PhaseConfigManager();
+    workflowManager = new WorkflowManager();
+    
+    // Start the server
+    app.listen(PORT, () => {
+      logger.info(`Depla Project Manager running on http://localhost:${PORT}`);
+    });
+
+    return githubInitialized;
+  } catch (error) {
+    logger.error('Failed to initialize application:', error);
+    throw error;
+  }
 }
+
+// API route to check GitHub auth status
+app.get('/api/auth/status', async (req, res) => {
+  try {
+    if (!githubClient) {
+      githubClient = new GitHubEnhanced();
+    }
+    const initialized = await githubClient.initializeClient();
+    if (initialized) {
+      const user = await githubClient.getUserInfo();
+      res.json({
+        success: true,
+        authenticated: true,
+        user: {
+          login: user.login,
+          avatar_url: user.avatar_url
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        authenticated: false,
+        needsAuth: true
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      needsAuth: true
+    });
+  }
+});
+
+// API route to set GitHub token
+app.post('/api/auth/token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token is required'
+      });
+    }
+
+    if (!githubClient) {
+      githubClient = new GitHubEnhanced();
+    }
+
+    const success = await githubClient.setToken(token);
+    if (success) {
+      const user = await githubClient.getUserInfo();
+      res.json({
+        success: true,
+        user: {
+          login: user.login,
+          avatar_url: user.avatar_url
+        }
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid GitHub token'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Routes that require GitHub authentication
+app.use('/api/github', ensureGitHubInitialized);
+app.use('/projects', ensureGitHubInitialized);
 
 // Routes
 app.get('/', async (req, res) => {
@@ -656,16 +764,19 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../build/index.html'));
   });
+} else {
+  // In development, serve the React dev server's index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/public/index.html'));
+  });
 }
 
 // Initialize the application
 if (require.main === module) {
   initializeApp().catch(error => {
     logger.error('Failed to initialize application:', error);
-    // Don't exit the process on authentication failure, just log the error
-    if (error.message && !error.message.includes('GitHub authentication failed')) {
-      process.exit(1);
-    }
+    // Exit with error code if initialization fails
+    process.exit(1);
   });
 }
 
