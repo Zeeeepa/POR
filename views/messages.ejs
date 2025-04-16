@@ -43,6 +43,28 @@
     .status-disconnected {
       background-color: #dc3545;
     }
+    .phase-indicator {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .phase-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #dee2e6;
+    }
+    .phase-dot.active {
+      background-color: #0d6efd;
+    }
+    .phase-dot.complete {
+      background-color: #198754;
+    }
+    .template-editor {
+      font-family: monospace;
+      height: 200px;
+      resize: vertical;
+    }
   </style>
 </head>
 <body>
@@ -89,17 +111,63 @@
     </nav>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1><%= project.config.name %> - Messages</h1>
+      <div>
+        <h1 class="mb-2"><%= project.config.name %> - Messages</h1>
+        <div class="phase-indicator">
+          <% for(let i = 0; i < (project.config.totalPhases || 4); i++) { %>
+            <div class="phase-dot <%= i < (project.config.completedPhases || 0) ? 'complete' : i === (project.config.currentPhaseIndex || -1) ? 'active' : '' %>"
+                 title="Phase <%= i + 1 %>"></div>
+          <% } %>
+        </div>
+      </div>
       <div class="d-flex align-items-center">
         <div class="connection-status me-3">
           <span class="status-indicator status-connected"></span>
           GitHub Connected
         </div>
-        <form action="/projects/<%= project.config.name %>/messages/send-all" method="POST">
-          <button type="submit" class="btn btn-success">
-            <i class="bi bi-play-fill"></i> Send All
+        <div class="btn-group">
+          <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#phaseConfigModal">
+            <i class="bi bi-gear"></i> Configure Phase
           </button>
-        </form>
+          <button class="btn btn-success" onclick="startPhase()">
+            <i class="bi bi-play-fill"></i> Start Phase
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current Phase Info -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Current Phase: <%= project.config.currentPhase || 'Not Started' %></h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label class="form-label">Template Type</label>
+              <div class="form-control-plaintext">
+                <%= project.config.currentTemplateType || 'Not Set' %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label class="form-label">Concurrent Tasks</label>
+              <div class="form-control-plaintext">
+                <%= project.config.concurrentTasks || 0 %> tasks
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label class="form-label">Code Analysis</label>
+              <div class="form-control-plaintext">
+                <%= project.config.requiresAnalysis ? 'Required' : 'Not Required' %>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -112,108 +180,75 @@
         </button>
       </div>
       <div class="card-body">
-        <% if (project.messages.filter(m => m.status === 'Ready to Send').length === 0) { %>
-          <p class="text-center text-muted my-4">No messages in queue</p>
-        <% } else { %>
-          <div class="row row-cols-1 row-cols-md-2 g-4">
-            <% project.messages.filter(m => m.status === 'Ready to Send').forEach((message, index) => { %>
-              <div class="col">
-                <div class="card message-card">
-                  <div class="card-body">
-                    <span class="badge bg-primary status-badge">Ready to Send</span>
-                    <h5 class="card-title"><%= index + 1 %>. <%= message.module_name %></h5>
-                    <p class="card-text">Module Path: <%= message.module_path %></p>
-                    <div class="mb-2">
-                      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details<%= message.id %>">
-                        Show Details
-                      </button>
-                    </div>
-                    <div class="collapse" id="details<%= message.id %>">
-                      <div class="card card-body mb-3">
-                        <h6>Implementation Query:</h6>
-                        <p class="mb-3"><%= message.implementation_query %></p>
-                        
-                        <% if (message.implementation_details && message.implementation_details.length > 0) { %>
-                          <h6>Implementation Details:</h6>
-                          <ul class="mb-3">
-                            <% message.implementation_details.forEach(detail => { %>
-                              <li><%= detail %></li>
-                            <% }); %>
-                          </ul>
-                        <% } %>
-                        
-                        <% if (message.key_functions && message.key_functions.length > 0) { %>
-                          <h6>Key Functions:</h6>
-                          <ul class="mb-3">
-                            <% message.key_functions.forEach(func => { %>
-                              <li><strong><%= func.name %></strong>: <%= func.description %></li>
-                            <% }); %>
-                          </ul>
-                        <% } %>
-                      </div>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                      <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editMessageModal<%= message.id %>">
-                        <i class="bi bi-pencil"></i> Edit
-                      </button>
-                      <form action="/projects/<%= project.config.name %>/messages/<%= message.id %>/send" method="POST">
-                        <button type="submit" class="btn btn-sm btn-success">
-                          <i class="bi bi-send"></i> Send
-                        </button>
-                      </form>
-                    </div>
-                  </div>
+        <div class="list-group">
+          <% (project.messages || []).forEach(message => { %>
+            <div class="list-group-item message-card">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1"><%= message.title %></h6>
+                  <p class="mb-1"><%= message.content %></p>
+                  <small class="text-muted">
+                    Template: <%= message.template %> | 
+                    Dependencies: <%= message.dependencies.join(', ') || 'None' %>
+                  </small>
+                </div>
+                <div class="badge <%= message.status === 'completed' ? 'bg-success' : message.status === 'pending' ? 'bg-warning' : 'bg-primary' %>">
+                  <%= message.status %>
                 </div>
               </div>
-            <% }); %>
-          </div>
-        <% } %>
+            </div>
+          <% }); %>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- Sent Messages -->
-    <div class="card">
-      <div class="card-header">
-        <h5 class="mb-0">Sent Messages</h5>
-      </div>
-      <div class="card-body">
-        <% if (project.messages.filter(m => m.status === 'Sent').length === 0) { %>
-          <p class="text-center text-muted my-4">No sent messages</p>
-        <% } else { %>
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Module Name</th>
-                  <th>Module Path</th>
-                  <th>Sent At</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% project.messages.filter(m => m.status === 'Sent').forEach(message => { %>
-                  <tr>
-                    <td><%= message.module_name %></td>
-                    <td><%= message.module_path %></td>
-                    <td><%= new Date(message.sentAt).toLocaleString() %></td>
-                    <td><span class="badge bg-success">Completed</span></td>
-                    <td>
-                      <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewMessageModal<%= message.id %>">
-                        <i class="bi bi-eye"></i> View
-                      </button>
-                      <form class="d-inline" action="/projects/<%= project.config.name %>/messages/<%= message.id %>/resend" method="POST">
-                        <button type="submit" class="btn btn-sm btn-outline-primary ms-1">
-                          <i class="bi bi-arrow-repeat"></i> Resend
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                <% }); %>
-              </tbody>
-            </table>
+  <!-- Phase Configuration Modal -->
+  <div class="modal fade" id="phaseConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Configure Phase</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form action="/projects/<%= project.config.name %>/phase/configure" method="POST">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="phase-name" class="form-label">Phase Name</label>
+              <input type="text" class="form-control" id="phase-name" name="name" value="<%= project.config.currentPhase %>" required>
+            </div>
+            <div class="mb-3">
+              <label for="template-type" class="form-label">Template Type</label>
+              <select class="form-select" id="template-type" name="templateType" required>
+                <option value="structure" <%= project.config.currentTemplateType === 'structure' ? 'selected' : '' %>>Structure Analysis</option>
+                <option value="features" <%= project.config.currentTemplateType === 'features' ? 'selected' : '' %>>Feature Suggestions</option>
+                <option value="steps" <%= project.config.currentTemplateType === 'steps' ? 'selected' : '' %>>Development Steps</option>
+                <option value="custom" <%= project.config.currentTemplateType === 'custom' ? 'selected' : '' %>>Custom</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="concurrent-tasks" class="form-label">Maximum Concurrent Tasks</label>
+              <input type="number" class="form-control" id="concurrent-tasks" name="concurrentTasks" value="<%= project.config.concurrentTasks || 5 %>" min="1" max="20">
+            </div>
+            <div class="mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="requires-analysis" name="requiresAnalysis" <%= project.config.requiresAnalysis ? 'checked' : '' %>>
+                <label class="form-check-label" for="requires-analysis">
+                  Requires Code Analysis
+                </label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="phase-template" class="form-label">Phase Template</label>
+              <textarea class="form-control template-editor" id="phase-template" name="template"><%= project.config.phaseTemplate || '' %></textarea>
+              <div class="form-text">Use {{variable}} syntax for dynamic content</div>
+            </div>
           </div>
-        <% } %>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -223,67 +258,23 @@
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Add New Message</h5>
+          <h5 class="modal-title">Add Message</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form action="/projects/<%= project.config.name %>/messages/add" method="POST">
           <div class="modal-body">
             <div class="mb-3">
-              <label for="module_name" class="form-label">Module Name</label>
-              <input type="text" class="form-control" id="module_name" name="module_name" required>
+              <label for="message-title" class="form-label">Title</label>
+              <input type="text" class="form-control" id="message-title" name="title" required>
             </div>
             <div class="mb-3">
-              <label for="module_path" class="form-label">Module Path</label>
-              <input type="text" class="form-control" id="module_path" name="module_path" required>
+              <label for="message-template" class="form-label">Template</label>
+              <select class="form-select" id="message-template" name="template" required>
+                <% (config.templates || []).forEach(template => { %>
+                  <option value="<%= template.id %>"><%= template.name %></option>
+                <% }); %>
+              </select>
             </div>
-            <div class="mb-3">
-              <label for="implementation_query" class="form-label">Implementation Query</label>
-              <textarea class="form-control" id="implementation_query" name="implementation_query" rows="3" required></textarea>
-            </div>
-            
-            <div class="mb-3">
-              <label class="form-label">Implementation Details</label>
-              <div id="implementationDetails">
-                <div class="input-group mb-2">
-                  <input type="text" class="form-control" name="implementation_details[]" placeholder="Implementation detail">
-                  <button class="btn btn-outline-danger" type="button" onclick="removeDetail(this)">
-                    <i class="bi bi-dash"></i>
-                  </button>
-                </div>
-              </div>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="addImplementationDetail()">
-                <i class="bi bi-plus"></i> Add Detail
-              </button>
-            </div>
-            
-            <div class="mb-3">
-              <label class="form-label">Key Functions</label>
-              <div id="keyFunctions">
-                <div class="card mb-2">
-                  <div class="card-body">
-                    <div class="mb-2">
-                      <label class="form-label">Function Name</label>
-                      <input type="text" class="form-control" name="key_functions[0][name]" placeholder="Function name">
-                    </div>
-                    <div class="mb-2">
-                      <label class="form-label">Description</label>
-                      <input type="text" class="form-control" name="key_functions[0][description]" placeholder="Function description">
-                    </div>
-                    <div class="mb-2">
-                      <label class="form-label">Parameters (comma separated)</label>
-                      <input type="text" class="form-control" name="key_functions[0][parameters_str]" placeholder="param1, param2">
-                    </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeFunction(this)">
-                      <i class="bi bi-trash"></i> Remove Function
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="addKeyFunction()">
-                <i class="bi bi-plus"></i> Add Function
-              </button>
-            </div>
-            
             <div class="mb-3">
               <label class="form-label">Dependencies</label>
               <div id="dependencies">
@@ -310,59 +301,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Dynamic form handling
-    let detailCount = 1;
-    let functionCount = 1;
-    let dependencyCount = 1;
-    
-    function addImplementationDetail() {
-      const html = `
-        <div class="input-group mb-2">
-          <input type="text" class="form-control" name="implementation_details[]" placeholder="Implementation detail">
-          <button class="btn btn-outline-danger" type="button" onclick="removeDetail(this)">
-            <i class="bi bi-dash"></i>
-          </button>
-        </div>
-      `;
-      document.getElementById('implementationDetails').insertAdjacentHTML('beforeend', html);
-      detailCount++;
-    }
-    
-    function removeDetail(button) {
-      button.closest('.input-group').remove();
-    }
-    
-    function addKeyFunction() {
-      const html = `
-        <div class="card mb-2">
-          <div class="card-body">
-            <div class="mb-2">
-              <label class="form-label">Function Name</label>
-              <input type="text" class="form-control" name="key_functions[${functionCount}][name]" placeholder="Function name">
-            </div>
-            <div class="mb-2">
-              <label class="form-label">Description</label>
-              <input type="text" class="form-control" name="key_functions[${functionCount}][description]" placeholder="Function description">
-            </div>
-            <div class="mb-2">
-              <label class="form-label">Parameters (comma separated)</label>
-              <input type="text" class="form-control" name="key_functions[${functionCount}][parameters_str]" placeholder="param1, param2">
-            </div>
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeFunction(this)">
-              <i class="bi bi-trash"></i> Remove Function
-            </button>
-          </div>
-        </div>
-      `;
-      document.getElementById('keyFunctions').insertAdjacentHTML('beforeend', html);
-      functionCount++;
-    }
-    
-    function removeFunction(button) {
-      button.closest('.card').remove();
-    }
-    
     function addDependency() {
+      const dependencies = document.getElementById('dependencies');
       const html = `
         <div class="input-group mb-2">
           <input type="text" class="form-control" name="dependencies[]" placeholder="Dependency">
@@ -371,12 +311,21 @@
           </button>
         </div>
       `;
-      document.getElementById('dependencies').insertAdjacentHTML('beforeend', html);
-      dependencyCount++;
+      dependencies.insertAdjacentHTML('beforeend', html);
     }
     
     function removeDependency(button) {
       button.closest('.input-group').remove();
+    }
+    
+    function startPhase() {
+      fetch(`/projects/<%= project.config.name %>/phase/start`, {
+        method: 'POST'
+      }).then(response => {
+        if (response.ok) {
+          window.location.reload();
+        }
+      });
     }
   </script>
 </body>
