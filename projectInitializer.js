@@ -8,13 +8,17 @@ const path = require('path');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-const templateEngine = require('../utils/templateEngine');
-const logger = require('../utils/logger');
+const templateEngine = require('./utils/templateEngine');
+const logger = require('./utils/logger');
+const { Octokit } = require('@octokit/rest');
 
 class ProjectInitializer {
   constructor() {
     this.templatesDir = path.join(process.cwd(), 'templates');
     this.projectsDir = path.join(process.cwd(), 'projects');
+    this.octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN
+    });
   }
   
   /**
@@ -45,6 +49,33 @@ class ProjectInitializer {
     } catch (error) {
       logger.error(`Project initialization failed: ${error.message}`, { error });
       return { success: false, error: error.message };
+    }
+  }
+  
+  /**
+   * Get list of GitHub repositories for the authenticated user
+   * @returns {Promise<Array>} List of repositories
+   */
+  async getGitHubRepositories() {
+    try {
+      const { data: repos } = await this.octokit.repos.listForAuthenticatedUser({
+        sort: 'updated',
+        direction: 'desc',
+        per_page: 100
+      });
+
+      return repos.map(repo => ({
+        id: repo.id,
+        name: repo.full_name,
+        url: repo.html_url,
+        description: repo.description,
+        language: repo.language,
+        private: repo.private,
+        updated_at: repo.updated_at
+      }));
+    } catch (error) {
+      logger.error(`Failed to fetch GitHub repositories: ${error.message}`);
+      throw error;
     }
   }
   
@@ -203,165 +234,6 @@ class ProjectInitializer {
     } catch (error) {
       logger.error(`Failed to send Slack message: ${error.message}`);
       // Continue even if slack message fails
-    }
-  }
-  
-  /**
-   * Generate Steps.md file from README requirements
-   * @param {string} projectName - Name of the project
-   * @returns {Promise<Object>} Result of steps generation
-   */
-  async generateStepsFile(projectName) {
-    try {
-      logger.info(`Generating Steps.md for project: ${projectName}`);
-      
-      const projectDir = path.join(this.projectsDir, projectName);
-      
-      // Check if project exists
-      if (!await fs.pathExists(projectDir)) {
-        throw new Error(`Project directory does not exist: ${projectDir}`);
-      }
-      
-      // Check if README.md exists
-      const readmePath = path.join(projectDir, 'README.md');
-      if (!await fs.pathExists(readmePath)) {
-        throw new Error('README.md does not exist in project directory');
-      }
-      
-      // This would typically call an AI service to generate Steps.md
-      // For now, we'll create a simple template-based version
-      const stepsContent = `# Implementation Steps for ${projectName}
-
-## Summary
-- Total Steps: 5
-- Estimated Time: 8 hours
-- Key Technologies: Node.js, Express, MongoDB
-
-## Step 1: Project Setup
-**Estimated time:** 1 hour
-**Complexity:** Low
-
-### Objective
-Initialize the project structure and install dependencies.
-
-### Implementation Details
-1. Create directory structure
-2. Initialize package.json
-3. Install core dependencies
-4. Configure basic environment
-
-### Verification
-Project structure is created and npm dependencies are installed.
-
----
-
-## Step 2: Database Setup
-**Estimated time:** 1.5 hours
-**Complexity:** Medium
-
-### Objective
-Set up database connection and models.
-
-### Implementation Details
-1. Configure MongoDB connection
-2. Create data models
-3. Set up validation schemas
-
-### Verification
-Database connection is established and models are defined.
-
----
-
-## Step 3: API Routes
-**Estimated time:** 2 hours
-**Complexity:** Medium
-
-### Objective
-Implement API routes and controllers.
-
-### Implementation Details
-1. Define route structure
-2. Implement controllers
-3. Add input validation
-
-### Verification
-API routes respond correctly to requests.
-
----
-
-## Step 4: Frontend Integration
-**Estimated time:** 2.5 hours
-**Complexity:** Medium
-
-### Objective
-Connect frontend to backend API.
-
-### Implementation Details
-1. Set up frontend structure
-2. Implement API service
-3. Create UI components
-
-### Verification
-Frontend successfully communicates with the API.
-
----
-
-## Step 5: Testing and Deployment
-**Estimated time:** 1 hour
-**Complexity:** Low
-
-### Objective
-Write tests and prepare for deployment.
-
-### Implementation Details
-1. Write unit tests
-2. Set up CI pipeline
-3. Prepare deployment configuration
-
-### Verification
-Tests pass and application is ready for deployment.
-`;
-      
-      // Write Steps.md to project directory
-      await fs.writeFile(
-        path.join(projectDir, 'Steps.md'),
-        stepsContent
-      );
-      
-      // Commit the file
-      try {
-        await execAsync('git add Steps.md', { cwd: projectDir });
-        await execAsync('git commit -m "Add implementation steps"', { cwd: projectDir });
-      } catch (error) {
-        logger.warn(`Failed to commit Steps.md: ${error.message}`);
-      }
-      
-      logger.info(`Steps.md generated for project: ${projectName}`);
-      
-      // Send message to Slack if enabled
-      try {
-        const slackService = require('./slackService');
-        await slackService.sendStepsCreatedMessage({
-          projectName,
-          stepsCount: 5,
-          estimatedTime: '8 hours',
-          summary: 'Implementation plan with 5 steps covering setup, database, API, frontend, and testing.'
-        });
-      } catch (error) {
-        logger.error(`Failed to send steps created message: ${error.message}`);
-      }
-      
-      return {
-        success: true,
-        stepsCount: 5,
-        estimatedTime: '8 hours'
-      };
-    } catch (error) {
-      logger.error(`Failed to generate Steps.md: ${error.message}`);
-      return {
-        success: false,
-        error: error.message
-      };
     }
   }
 }
