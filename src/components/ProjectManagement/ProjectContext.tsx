@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Project, ProjectContextType, Template } from './types';
+import { Project, ProjectContextType, Template, Phase, ValidationRule } from './types';
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
@@ -9,7 +9,55 @@ interface ProjectState {
   templates: Template[];
   isLoading: boolean;
   error: string | null;
+  success: string | null;
 }
+
+interface ProjectSettings {
+  validation: {
+    rules: ValidationRule[];
+    autoMerge: boolean;
+    requireApproval: boolean;
+  };
+  concurrent: {
+    enabled: boolean;
+    maxFeatures: number;
+    activeFeatures: number;
+  };
+  templates: Template[];
+  phases: Phase[];
+  timing: {
+    estimatedTime: number;
+    elapsedTime: number;
+    startTime?: Date;
+    endTime?: Date;
+  };
+}
+
+const defaultValidationRules: ValidationRule[] = [
+  { type: 'test', value: true, enabled: true },
+  { type: 'lint', value: true, enabled: true },
+  { type: 'coverage', value: 80, enabled: true },
+  { type: 'custom', value: '', enabled: false },
+];
+
+const defaultProjectSettings: ProjectSettings = {
+  validation: {
+    rules: defaultValidationRules,
+    autoMerge: false,
+    requireApproval: true,
+  },
+  concurrent: {
+    enabled: false,
+    maxFeatures: 5,
+    activeFeatures: 0,
+  },
+  templates: [],
+  phases: [],
+  timing: {
+    estimatedTime: 0,
+    elapsedTime: 0,
+  },
+};
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<ProjectState>({
@@ -18,6 +66,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     templates: [],
     isLoading: false,
     error: null,
+    success: null,
   });
 
   const setLoading = (loading: boolean) => {
@@ -28,10 +77,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setState(prev => ({ ...prev, error }));
   };
 
+  const setSuccess = (success: string | null) => {
+    setState(prev => ({ ...prev, success }));
+  };
+
   const addProject = useCallback((project: Project) => {
     setState(prev => ({
       ...prev,
       projects: [...prev.projects, project],
+      success: `Project "${project.name}" added successfully`,
     }));
   }, []);
 
@@ -45,15 +99,20 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         prev.selectedProject?.id === id
           ? { ...prev.selectedProject, ...updates }
           : prev.selectedProject,
+      success: `Project "${prev.projects.find(p => p.id === id)?.name}" updated successfully`,
     }));
   }, []);
 
   const removeProject = useCallback((id: string) => {
-    setState(prev => ({
-      ...prev,
-      projects: prev.projects.filter(project => project.id !== id),
-      selectedProject: prev.selectedProject?.id === id ? null : prev.selectedProject,
-    }));
+    setState(prev => {
+      const projectName = prev.projects.find(p => p.id === id)?.name;
+      return {
+        ...prev,
+        projects: prev.projects.filter(project => project.id !== id),
+        selectedProject: prev.selectedProject?.id === id ? null : prev.selectedProject,
+        success: `Project "${projectName}" removed successfully`,
+      };
+    });
   }, []);
 
   const setSelectedProject = useCallback((project: Project | null) => {
@@ -88,21 +147,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               completed: 0,
             },
             settings: {
-              validation: {
-                rules: [
-                  { type: 'test', value: true, enabled: true },
-                  { type: 'lint', value: true, enabled: true },
-                  { type: 'coverage', value: 80, enabled: true },
-                  { type: 'custom', value: '', enabled: false },
-                ],
-                autoMerge: false,
-                requireApproval: true,
-              },
-              concurrent: {
-                enabled: false,
-                maxFeatures: 5,
-              },
+              ...defaultProjectSettings,
               templates: projectData.templates || [],
+              phases: projectData.phases || [],
+              timing: {
+                ...defaultProjectSettings.timing,
+                estimatedTime: projectData.estimatedTime || 0,
+              },
             },
           };
 
@@ -113,6 +164,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setState(prev => ({
         ...prev,
         projects: [...prev.projects, ...importedProjects],
+        success: `${importedProjects.length} project(s) imported successfully`,
       }));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to import projects');
@@ -126,69 +178,187 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     updateProject(id, { isInitializing: true });
 
     try {
-      // Simulate project initialization
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const project = state.projects.find(p => p.id === id);
+      if (!project) throw new Error('Project not found');
+
+      const phases: Phase[] = [
+        {
+          id: crypto.randomUUID(),
+          name: 'Structure Analysis',
+          description: 'Analyze and document existing codebase structure',
+          status: 'pending',
+          template: {
+            id: 'structure-current',
+            name: 'GenerateSTRUCTURE\'current\'.promptp',
+            description: 'Template for analyzing current code structure',
+            parameters: {},
+          },
+          validation: {
+            rules: defaultValidationRules,
+            autoMerge: true,
+            requireApproval: false,
+          },
+          estimatedTime: 5,
+          concurrentFeatures: false,
+          maxConcurrentFeatures: 1,
+        },
+        {
+          id: crypto.randomUUID(),
+          name: 'Feature Suggestions',
+          description: 'Generate potential feature enhancements',
+          status: 'pending',
+          template: {
+            id: 'structure-suggested',
+            name: 'generateSTRUCTURE\'suggested\'.prompt',
+            description: 'Template for generating suggested features',
+            parameters: {},
+          },
+          validation: {
+            rules: defaultValidationRules,
+            autoMerge: true,
+            requireApproval: false,
+          },
+          estimatedTime: 10,
+          concurrentFeatures: false,
+          maxConcurrentFeatures: 1,
+        },
+        {
+          id: crypto.randomUUID(),
+          name: 'Step Generation',
+          description: 'Create implementation plan with concurrent components',
+          status: 'pending',
+          template: {
+            id: 'generate-step',
+            name: 'GenerateSTEP.prompt',
+            description: 'Template for generating implementation steps',
+            parameters: {},
+          },
+          validation: {
+            rules: defaultValidationRules,
+            autoMerge: true,
+            requireApproval: false,
+          },
+          estimatedTime: 15,
+          concurrentFeatures: false,
+          maxConcurrentFeatures: 1,
+        },
+      ];
+
+      const settings: ProjectSettings = {
+        ...defaultProjectSettings,
+        phases,
+        timing: {
+          ...defaultProjectSettings.timing,
+          startTime: new Date(),
+          estimatedTime: phases.reduce((total, phase) => total + phase.estimatedTime, 0),
+        },
+      };
 
       updateProject(id, {
         isInitialized: true,
         isInitializing: false,
+        settings,
         templateStatus: {
-          total: 1,
-          completed: 1,
+          total: phases.length,
+          completed: 0,
         },
       });
+
+      setSuccess(`Project "${project.name}" initialized successfully`);
     } catch (error) {
       updateProject(id, {
         isInitializing: false,
         error: error instanceof Error ? error.message : 'Failed to initialize project',
       });
+      setError(error instanceof Error ? error.message : 'Failed to initialize project');
     }
-  }, [updateProject]);
+  }, [state.projects, updateProject]);
 
   const refreshProject = useCallback(async (id: string) => {
     setError(null);
     updateProject(id, { isInitializing: true });
 
     try {
-      // Simulate project refresh
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const project = state.projects.find(p => p.id === id);
+      if (!project) throw new Error('Project not found');
 
-      updateProject(id, {
-        isInitializing: false,
-        error: null,
-      });
+      if (project.settings?.timing.startTime) {
+        const now = new Date();
+        const elapsedTime = Math.floor(
+          (now.getTime() - new Date(project.settings.timing.startTime).getTime()) / 60000
+        );
+
+        updateProject(id, {
+          isInitializing: false,
+          error: null,
+          settings: {
+            ...project.settings,
+            timing: {
+              ...project.settings.timing,
+              elapsedTime,
+            },
+          },
+        });
+      } else {
+        updateProject(id, {
+          isInitializing: false,
+          error: null,
+        });
+      }
+
+      setSuccess(`Project "${project.name}" refreshed successfully`);
     } catch (error) {
       updateProject(id, {
         isInitializing: false,
         error: error instanceof Error ? error.message : 'Failed to refresh project',
       });
+      setError(error instanceof Error ? error.message : 'Failed to refresh project');
     }
-  }, [updateProject]);
+  }, [state.projects, updateProject]);
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Simulate loading templates
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
       const templates: Template[] = [
         {
-          id: 'template-1',
-          name: 'Basic Project',
-          description: 'A basic project template with common settings',
+          id: 'structure-current',
+          name: 'Current Structure Analysis',
+          description: 'Template for analyzing current code structure',
           parameters: {},
         },
         {
-          id: 'template-2',
-          name: 'Full Stack App',
-          description: 'A full stack application template with frontend and backend',
+          id: 'structure-suggested',
+          name: 'Feature Suggestions',
+          description: 'Template for generating suggested features',
+          parameters: {},
+        },
+        {
+          id: 'generate-step',
+          name: 'Step Generation',
+          description: 'Template for generating implementation steps',
+          parameters: {},
+        },
+        {
+          id: 'feature-implementation',
+          name: 'Feature Implementation',
+          description: 'Template for implementing individual features',
+          parameters: {},
+        },
+        {
+          id: 'phase-validation',
+          name: 'Phase Validation',
+          description: 'Template for validating phase completion',
           parameters: {},
         },
       ];
 
-      setState(prev => ({ ...prev, templates }));
+      setState(prev => ({
+        ...prev,
+        templates,
+        success: 'Templates loaded successfully',
+      }));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load templates');
     } finally {
@@ -206,6 +376,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     templates: state.templates,
     isLoading: state.isLoading,
     error: state.error,
+    success: state.success,
     addProject,
     updateProject,
     removeProject,
