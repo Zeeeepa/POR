@@ -28,6 +28,27 @@ export interface ValidationSettings {
 export interface ConcurrentSettings {
   enabled: boolean;
   maxFeatures: number;
+  activeFeatures: number;
+  rateLimit: number;
+  retrySettings: {
+    maxAttempts: number;
+    delayBetweenAttempts: number;
+  };
+}
+
+export interface TimingSettings {
+  estimatedTime: number;
+  elapsedTime: number;
+  startTime?: Date;
+  endTime?: Date;
+  phases: {
+    [phaseId: string]: {
+      estimatedTime: number;
+      elapsedTime: number;
+      startTime?: Date;
+      endTime?: Date;
+    };
+  };
 }
 
 export interface ProjectSettings {
@@ -35,7 +56,9 @@ export interface ProjectSettings {
   outputPath?: string;
   validation: ValidationSettings;
   concurrent: ConcurrentSettings;
-  templates: string[];
+  timing: TimingSettings;
+  templates: Template[];
+  phases: Phase[];
   customSettings?: Record<string, unknown>;
 }
 
@@ -44,6 +67,11 @@ export interface Template {
   name: string;
   description: string;
   parameters: Record<string, any>;
+  validation?: ValidationSettings;
+  concurrent?: ConcurrentSettings;
+  timing?: {
+    estimatedTime: number;
+  };
 }
 
 export interface TemplateFile {
@@ -55,7 +83,7 @@ export interface TemplateFile {
   settings?: Record<string, any>;
 }
 
-export interface ProjectPhase {
+export interface Phase {
   id: string;
   name: string;
   description: string;
@@ -65,10 +93,18 @@ export interface ProjectPhase {
   estimatedTime: number;
   validation: ValidationSettings;
   concurrent: ConcurrentSettings;
-  templates: string[];
+  template?: Template;
+  features: Feature[];
+  dependencies: string[];
+  timing: {
+    estimatedTime: number;
+    elapsedTime: number;
+    startTime?: Date;
+    endTime?: Date;
+  };
 }
 
-export interface ProjectFeature {
+export interface Feature {
   id: string;
   name: string;
   description: string;
@@ -78,8 +114,14 @@ export interface ProjectFeature {
   estimatedTime: number;
   validation: ValidationSettings;
   dependencies: string[];
-  template?: string;
+  template?: Template;
   settings?: Record<string, any>;
+  timing: {
+    estimatedTime: number;
+    elapsedTime: number;
+    startTime?: Date;
+    endTime?: Date;
+  };
 }
 
 // Context Types
@@ -89,6 +131,7 @@ export interface ProjectContextType {
   templates: Template[];
   isLoading: boolean;
   error: string | null;
+  success: string | null;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   removeProject: (id: string) => void;
@@ -109,20 +152,23 @@ export interface ProjectInitializationProps {
   onTemplateUpdate: (templateFiles: TemplateFile[]) => void;
 }
 
-export interface ProjectPhaseProps {
-  phase: ProjectPhase;
+export interface PhaseProps {
+  phase: Phase;
   onPhaseStart: () => Promise<void>;
   onPhaseStop: () => Promise<void>;
-  onPhaseUpdate: (updates: Partial<ProjectPhase>) => void;
+  onPhaseUpdate: (updates: Partial<Phase>) => void;
   onPhaseDelete: () => void;
+  onFeatureAdd: () => void;
+  onFeatureUpdate: (featureId: string, updates: Partial<Feature>) => void;
+  onFeatureDelete: (featureId: string) => void;
   isRunning: boolean;
 }
 
-export interface ProjectFeatureProps {
-  feature: ProjectFeature;
+export interface FeatureProps {
+  feature: Feature;
   onFeatureStart: () => Promise<void>;
   onFeatureStop: () => Promise<void>;
-  onFeatureUpdate: (updates: Partial<ProjectFeature>) => void;
+  onFeatureUpdate: (updates: Partial<Feature>) => void;
   onFeatureDelete: () => void;
   isRunning: boolean;
 }
@@ -134,7 +180,7 @@ export interface ProjectSettingsProps {
   isRunning: boolean;
 }
 
-export interface ProjectTemplateProps {
+export interface TemplateProps {
   template: Template;
   onTemplateSelect: () => void;
   onTemplateUpdate: (updates: Partial<Template>) => void;
@@ -142,15 +188,21 @@ export interface ProjectTemplateProps {
   isSelected: boolean;
 }
 
-export interface ProjectValidationProps {
+export interface ValidationProps {
   validation: ValidationSettings;
   onValidationUpdate: (updates: Partial<ValidationSettings>) => void;
   isRunning: boolean;
 }
 
-export interface ProjectConcurrentProps {
+export interface ConcurrentProps {
   concurrent: ConcurrentSettings;
   onConcurrentUpdate: (updates: Partial<ConcurrentSettings>) => void;
+  isRunning: boolean;
+}
+
+export interface TimingProps {
+  timing: TimingSettings;
+  onTimingUpdate: (updates: Partial<TimingSettings>) => void;
   isRunning: boolean;
 }
 
@@ -201,6 +253,10 @@ export interface ProjectStatusChipProps {
   label?: string;
   size?: 'small' | 'medium';
   showIcon?: boolean;
+  progress?: number;
+  error?: string;
+  warning?: string;
+  info?: string;
 }
 
 export interface ProjectProgressProps {
@@ -208,6 +264,8 @@ export interface ProjectProgressProps {
   variant?: 'determinate' | 'indeterminate';
   color?: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success';
   size?: 'small' | 'medium' | 'large';
+  showLabel?: boolean;
+  label?: string;
 }
 
 export interface ProjectTooltipProps {
