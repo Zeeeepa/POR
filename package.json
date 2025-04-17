@@ -14,6 +14,7 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
+    "@octokit/auth-oauth-app": "^7.0.1",
     "@octokit/rest": "^19.0.13",
     "ajv": "^8.12.0",
     "dotenv": "^16.4.5",
