@@ -22,6 +22,14 @@ import {
   Alert,
   Menu,
   MenuItem,
+  ListItemIcon,
+  ListItemText,
+  FormControlLabel,
+  Switch,
+  Select,
+  FormControl,
+  InputLabel,
+  Divider,
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
@@ -35,10 +43,13 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
   MoreVert as MoreIcon,
+  Code as CodeIcon,
+  Schedule as ScheduleIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { useProject } from './ProjectContext';
-import { ProjectListProps, Project } from './types';
+import { ProjectListProps, Project, Template, Phase } from './types';
 
 const ProjectTabPanel = styled(Box)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -116,6 +127,7 @@ interface ProjectSettingsDialogProps {
   project: Project | null;
   onClose: () => void;
   onSave: (project: Project) => void;
+  templates: Template[];
 }
 
 const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({
@@ -123,6 +135,7 @@ const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({
   project,
   onClose,
   onSave,
+  templates,
 }) => {
   const [editedProject, setEditedProject] = useState<Project | null>(null);
 
@@ -133,7 +146,7 @@ const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({
   if (!editedProject) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>Project Settings - {editedProject.name}</DialogTitle>
       <DialogContent>
         <Grid container spacing={2}>
@@ -164,6 +177,324 @@ const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({
               margin="normal"
             />
           </Grid>
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              Templates
+            </Typography>
+            <Grid container spacing={1}>
+              {templates.map((template) => (
+                <Grid item key={template.id}>
+                  <Chip
+                    label={template.name}
+                    variant={
+                      editedProject.settings.templates.some(
+                        (t) => t.id === template.id
+                      )
+                        ? 'filled'
+                        : 'outlined'
+                    }
+                    onClick={() => {
+                      const isSelected = editedProject.settings.templates.some(
+                        (t) => t.id === template.id
+                      );
+                      setEditedProject({
+                        ...editedProject,
+                        settings: {
+                          ...editedProject.settings,
+                          templates: isSelected
+                            ? editedProject.settings.templates.filter(
+                                (t) => t.id !== template.id
+                              )
+                            : [...editedProject.settings.templates, template],
+                        },
+                      });
+                    }}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              Validation Settings
+            </Typography>
+            {editedProject.settings.validation.rules.map((rule, index) => (
+              <Box key={rule.type} mb={2}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={rule.enabled}
+                      onChange={(e) => {
+                        const updatedRules = [
+                          ...editedProject.settings.validation.rules,
+                        ];
+                        updatedRules[index] = {
+                          ...rule,
+                          enabled: e.target.checked,
+                        };
+                        setEditedProject({
+                          ...editedProject,
+                          settings: {
+                            ...editedProject.settings,
+                            validation: {
+                              ...editedProject.settings.validation,
+                              rules: updatedRules,
+                            },
+                          },
+                        });
+                      }}
+                    />
+                  }
+                  label={rule.type.charAt(0).toUpperCase() + rule.type.slice(1)}
+                />
+                {rule.type === 'coverage' && rule.enabled && (
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Coverage Threshold (%)"
+                    value={rule.value}
+                    onChange={(e) => {
+                      const updatedRules = [
+                        ...editedProject.settings.validation.rules,
+                      ];
+                      updatedRules[index] = {
+                        ...rule,
+                        value: parseInt(e.target.value),
+                      };
+                      setEditedProject({
+                        ...editedProject,
+                        settings: {
+                          ...editedProject.settings,
+                          validation: {
+                            ...editedProject.settings.validation,
+                            rules: updatedRules,
+                          },
+                        },
+                      });
+                    }}
+                    margin="normal"
+                  />
+                )}
+                {rule.type === 'custom' && rule.enabled && (
+                  <TextField
+                    fullWidth
+                    label="Custom Validation Command"
+                    value={rule.value}
+                    onChange={(e) => {
+                      const updatedRules = [
+                        ...editedProject.settings.validation.rules,
+                      ];
+                      updatedRules[index] = {
+                        ...rule,
+                        value: e.target.value,
+                      };
+                      setEditedProject({
+                        ...editedProject,
+                        settings: {
+                          ...editedProject.settings,
+                          validation: {
+                            ...editedProject.settings.validation,
+                            rules: updatedRules,
+                          },
+                        },
+                      });
+                    }}
+                    margin="normal"
+                  />
+                )}
+              </Box>
+            ))}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editedProject.settings.validation.autoMerge}
+                  onChange={(e) =>
+                    setEditedProject({
+                      ...editedProject,
+                      settings: {
+                        ...editedProject.settings,
+                        validation: {
+                          ...editedProject.settings.validation,
+                          autoMerge: e.target.checked,
+                        },
+                      },
+                    })
+                  }
+                />
+              }
+              label="Auto-merge on validation success"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editedProject.settings.validation.requireApproval}
+                  onChange={(e) =>
+                    setEditedProject({
+                      ...editedProject,
+                      settings: {
+                        ...editedProject.settings,
+                        validation: {
+                          ...editedProject.settings.validation,
+                          requireApproval: e.target.checked,
+                        },
+                      },
+                    })
+                  }
+                />
+              }
+              label="Require approval before merge"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              Concurrent Development
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editedProject.settings.concurrent.enabled}
+                  onChange={(e) =>
+                    setEditedProject({
+                      ...editedProject,
+                      settings: {
+                        ...editedProject.settings,
+                        concurrent: {
+                          ...editedProject.settings.concurrent,
+                          enabled: e.target.checked,
+                        },
+                      },
+                    })
+                  }
+                />
+              }
+              label="Enable concurrent development"
+            />
+            {editedProject.settings.concurrent.enabled && (
+              <>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Max Concurrent Features"
+                  value={editedProject.settings.concurrent.maxFeatures}
+                  onChange={(e) =>
+                    setEditedProject({
+                      ...editedProject,
+                      settings: {
+                        ...editedProject.settings,
+                        concurrent: {
+                          ...editedProject.settings.concurrent,
+                          maxFeatures: parseInt(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                  margin="normal"
+                />
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Rate Limit (requests/min)"
+                  value={editedProject.settings.concurrent.rateLimit}
+                  onChange={(e) =>
+                    setEditedProject({
+                      ...editedProject,
+                      settings: {
+                        ...editedProject.settings,
+                        concurrent: {
+                          ...editedProject.settings.concurrent,
+                          rateLimit: parseInt(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                  margin="normal"
+                />
+                <Box mt={2}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Retry Settings
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Max Retry Attempts"
+                    value={
+                      editedProject.settings.concurrent.retrySettings.maxAttempts
+                    }
+                    onChange={(e) =>
+                      setEditedProject({
+                        ...editedProject,
+                        settings: {
+                          ...editedProject.settings,
+                          concurrent: {
+                            ...editedProject.settings.concurrent,
+                            retrySettings: {
+                              ...editedProject.settings.concurrent.retrySettings,
+                              maxAttempts: parseInt(e.target.value),
+                            },
+                          },
+                        },
+                      })
+                    }
+                    margin="normal"
+                  />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Delay Between Attempts (ms)"
+                    value={
+                      editedProject.settings.concurrent.retrySettings
+                        .delayBetweenAttempts
+                    }
+                    onChange={(e) =>
+                      setEditedProject({
+                        ...editedProject,
+                        settings: {
+                          ...editedProject.settings,
+                          concurrent: {
+                            ...editedProject.settings.concurrent,
+                            retrySettings: {
+                              ...editedProject.settings.concurrent.retrySettings,
+                              delayBetweenAttempts: parseInt(e.target.value),
+                            },
+                          },
+                        },
+                      })
+                    }
+                    margin="normal"
+                  />
+                </Box>
+              </>
+            )}
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              Timing Settings
+            </Typography>
+            <TextField
+              fullWidth
+              type="number"
+              label="Estimated Time (minutes)"
+              value={editedProject.settings.timing.estimatedTime}
+              onChange={(e) =>
+                setEditedProject({
+                  ...editedProject,
+                  settings: {
+                    ...editedProject.settings,
+                    timing: {
+                      ...editedProject.settings.timing,
+                      estimatedTime: parseInt(e.target.value),
+                    },
+                  },
+                })
+              }
+              margin="normal"
+            />
+            {editedProject.settings.timing.elapsedTime > 0 && (
+              <Typography variant="body2" color="textSecondary">
+                Elapsed Time: {editedProject.settings.timing.elapsedTime} minutes
+              </Typography>
+            )}
+          </Grid>
         </Grid>
       </DialogContent>
       <DialogActions>
@@ -193,17 +524,20 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
     importProjects,
     deleteProject,
     updateProject,
+    templates,
   } = useProject();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState(0);
   const [isImporting, setIsImporting] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [selectedProjectForSettings, setSelectedProjectForSettings] = useState<Project | null>(null);
+  const [selectedProjectForSettings, setSelectedProjectForSettings] =
+    useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedProjectForMenu, setSelectedProjectForMenu] = useState<Project | null>(null);
+  const [selectedProjectForMenu, setSelectedProjectForMenu] =
+    useState<Project | null>(null);
 
   const handleProjectImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -269,6 +603,30 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
     return project.isInitialized ? 'initialized' : 'not_initialized';
   };
 
+  const getProjectProgress = (project: Project) => {
+    if (!project.settings.phases.length) return 0;
+    const completedPhases = project.settings.phases.filter(
+      (phase) => phase.status === 'completed'
+    ).length;
+    return (completedPhases / project.settings.phases.length) * 100;
+  };
+
+  const getProjectTiming = (project: Project) => {
+    const { timing } = project.settings;
+    if (!timing.startTime) return null;
+
+    const elapsedTime = timing.elapsedTime;
+    const estimatedTime = timing.estimatedTime;
+    const progress = (elapsedTime / estimatedTime) * 100;
+
+    return {
+      elapsedTime,
+      estimatedTime,
+      progress,
+      isOvertime: elapsedTime > estimatedTime,
+    };
+  };
+
   return (
     <Box>
       <SearchBar>
@@ -318,13 +676,21 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
             <Grid item xs={12} sm={6} md={4} key={project.id}>
               <ProjectCard>
                 <ProjectContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                  <Box
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="flex-start"
+                  >
                     <Box>
                       <Typography variant="h6" gutterBottom>
                         <StatusIndicator status={getProjectStatus(project)} />
                         {project.name}
                       </Typography>
-                      <Typography color="textSecondary" variant="body2" gutterBottom>
+                      <Typography
+                        color="textSecondary"
+                        variant="body2"
+                        gutterBottom
+                      >
                         {project.description || 'No description'}
                       </Typography>
                     </Box>
@@ -341,7 +707,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
                       size="small"
                       label={`Templates: ${project.templateStatus.completed}/${project.templateStatus.total}`}
                       color={
-                        project.templateStatus.completed === project.templateStatus.total
+                        project.templateStatus.completed ===
+                        project.templateStatus.total
                           ? 'success'
                           : 'default'
                       }
@@ -353,6 +720,19 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
                       color={project.isInitialized ? 'success' : 'warning'}
                       sx={{ mr: 1, mb: 1 }}
                     />
+                    {project.settings.concurrent.enabled && (
+                      <Tooltip
+                        title={`${project.settings.concurrent.activeFeatures}/${project.settings.concurrent.maxFeatures} features active`}
+                      >
+                        <Chip
+                          size="small"
+                          label="Concurrent"
+                          color="info"
+                          variant="outlined"
+                          sx={{ mr: 1, mb: 1 }}
+                        />
+                      </Tooltip>
+                    )}
                     {project.error && (
                       <Tooltip title={project.error}>
                         <Chip
@@ -365,6 +745,49 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
                       </Tooltip>
                     )}
                   </Box>
+
+                  {project.settings.phases.length > 0 && (
+                    <Box mt={2}>
+                      <Typography variant="body2" gutterBottom>
+                        Phases Progress
+                      </Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={getProjectProgress(project)}
+                      />
+                      <Typography variant="caption" color="textSecondary">
+                        {project.settings.phases.filter(
+                          (phase) => phase.status === 'completed'
+                        ).length}{' '}
+                        / {project.settings.phases.length} phases completed
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {project.isInitialized && (
+                    <Box mt={2}>
+                      <Typography variant="body2" gutterBottom>
+                        Timing
+                      </Typography>
+                      {getProjectTiming(project) && (
+                        <>
+                          <LinearProgress
+                            variant="determinate"
+                            value={getProjectTiming(project)!.progress}
+                            color={
+                              getProjectTiming(project)!.isOvertime
+                                ? 'error'
+                                : 'primary'
+                            }
+                          />
+                          <Typography variant="caption" color="textSecondary">
+                            {getProjectTiming(project)!.elapsedTime} /{' '}
+                            {getProjectTiming(project)!.estimatedTime} minutes
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                  )}
 
                   {project.isInitializing && (
                     <Box mt={2}>
@@ -398,7 +821,12 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
           ))}
         </Grid>
       ) : (
-        <Typography variant="body1" color="textSecondary" align="center" sx={{ mt: 4 }}>
+        <Typography
+          variant="body1"
+          color="textSecondary"
+          align="center"
+          sx={{ mt: 4 }}
+        >
           No projects found. Import projects to get started.
         </Typography>
       )}
@@ -458,6 +886,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onProjectSelect }) => 
           setSelectedProjectForSettings(null);
         }}
         onSave={handleProjectUpdate}
+        templates={templates}
       />
     </Box>
   );
