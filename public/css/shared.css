@@ -1,0 +1,71 @@
+/* Common card styles */
+.project-card {
+  transition: transform 0.2s;
+}
+.project-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.add-project-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  border: 2px dashed #dee2e6;
+}
+.add-project-card:hover {
+  background-color: #f8f9fa;
+}
+
+/* Phase indicator */
+.phase-indicator {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0;
+}
+.phase-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #dee2e6;
+}
+.phase-dot.active {
+  background-color: #0d6efd;
+}
+.phase-dot.complete {
+  background-color: #198754;
+}
+
+/* Status badges */
+.template-status {
+  font-size: 0.875rem;
+  margin-bottom: 10px;
+}
+
+/* Connection status */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-connected {
+  background-color: #198754;
+}
+.status-disconnected {
+  background-color: #dc3545;
+}
+
+/* Template editor */
+.template-editor {
+  font-family: monospace;
+  height: 200px;
+  resize: vertical;
+}

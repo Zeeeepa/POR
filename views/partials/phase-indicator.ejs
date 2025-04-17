@@ -1,0 +1,6 @@
+<div class="phase-indicator">
+  <% for(let i = 0; i < (project.config.totalPhases || 4); i++) { %>
+    <div class="phase-dot <%= i < (project.config.completedPhases || 0) ? 'complete' : i === (project.config.currentPhaseIndex || -1) ? 'active' : '' %>"
+         title="Phase <%= i + 1 %>"></div>
+  <% } %>
+</div>
