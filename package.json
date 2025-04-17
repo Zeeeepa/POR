@@ -17,6 +17,7 @@
     "@octokit/auth-oauth-app": "^7.0.1",
     "@octokit/rest": "^19.0.13",
     "ajv": "^8.12.0",
+    "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.9",
     "express": "^4.18.3",
