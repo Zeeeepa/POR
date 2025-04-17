@@ -2,55 +2,46 @@ const fs = require('fs').promises;
 const path = require('path');
 
 class TemplateManager {
-  constructor(templatesDir = 'templates') {
-    this.templatesDir = templatesDir;
-  }
-
-  async init() {
-    try {
-      await fs.mkdir(this.templatesDir, { recursive: true });
-    } catch (error) {
-      throw new Error(`Failed to initialize templates directory: ${error.message}`);
+    constructor() {
+        this.templates = new Map();
     }
-  }
 
-  async saveTemplate(name, content) {
-    try {
-      const filePath = path.join(this.templatesDir, `${name}.template`);
-      await fs.writeFile(filePath, content, 'utf8');
-    } catch (error) {
-      throw new Error(`Failed to save template ${name}: ${error.message}`);
+    // Add a new template
+    addTemplate(name, template) {
+        if (!name || !template) {
+            throw new Error('Template name and content are required');
+        }
+        this.templates.set(name, template);
     }
-  }
 
-  async loadTemplate(name) {
-    try {
-      const filePath = path.join(this.templatesDir, `${name}.template`);
-      return await fs.readFile(filePath, 'utf8');
-    } catch (error) {
-      throw new Error(`Failed to load template ${name}: ${error.message}`);
+    // Get a template by name
+    getTemplate(name) {
+        if (!this.templates.has(name)) {
+            throw new Error(`Template "${name}" not found`);
+        }
+        return this.templates.get(name);
     }
-  }
 
-  async listTemplates() {
-    try {
-      const files = await fs.readdir(this.templatesDir);
-      return files
-        .filter(file => file.endsWith('.template'))
-        .map(file => file.replace('.template', ''));
-    } catch (error) {
-      throw new Error(`Failed to list templates: ${error.message}`);
+    // List all available templates
+    listTemplates() {
+        return Array.from(this.templates.keys());
     }
-  }
 
-  async deleteTemplate(name) {
-    try {
-      const filePath = path.join(this.templatesDir, `${name}.template`);
-      await fs.unlink(filePath);
-    } catch (error) {
-      throw new Error(`Failed to delete template ${name}: ${error.message}`);
+    // Delete a template
+    deleteTemplate(name) {
+        if (!this.templates.has(name)) {
+            throw new Error(`Template "${name}" not found`);
+        }
+        this.templates.delete(name);
     }
-  }
+
+    // Update an existing template
+    updateTemplate(name, newTemplate) {
+        if (!this.templates.has(name)) {
+            throw new Error(`Template "${name}" not found`);
+        }
+        this.templates.set(name, newTemplate);
+    }
 }
 
 module.exports = TemplateManager;
