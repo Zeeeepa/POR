@@ -1,180 +1,82 @@
-/**
- * CursorAutomation class for managing cursor positions and automation
- */
-const fs = require('fs');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const EventEmitter = require('events');
-const robot = require('robotjs');
+const { mouse, screen } = require('robotjs');
 
-class CursorAutomation extends EventEmitter {
-    constructor(options = {}) {
-        super();
-        this.dataDir = options.dataDir || path.join(process.cwd(), 'data', 'cursor-positions');
-        this.positions = new Map();
-        this.activeCursors = [];
-        
-        // Ensure data directory exists
-        if (!fs.existsSync(this.dataDir)) {
-            fs.mkdirSync(this.dataDir, { recursive: true });
-        }
-        
-        // Load saved positions
-        this.loadPositions();
-    }
-    
-    /**
-     * Load saved cursor positions
-     */
-    loadPositions() {
+class CursorAutomation {
+    constructor() {
+        // Initialize robotjs
         try {
-            const positionsFile = path.join(this.dataDir, 'positions.json');
-            
-            if (fs.existsSync(positionsFile)) {
-                const positions = JSON.parse(fs.readFileSync(positionsFile, 'utf8'));
-                positions.forEach(pos => this.positions.set(pos.id, pos));
+            // Test if robotjs is working
+            const { width, height } = screen.getSize();
+            if (!width || !height) {
+                throw new Error('Failed to get screen size');
             }
         } catch (error) {
-            console.error('Error loading positions:', error);
+            throw new Error(`Failed to initialize robotjs: ${error.message}. Please ensure robotjs is properly installed by running: npm install robotjs`);
         }
     }
-    
+
     /**
-     * Save cursor positions
+     * Move cursor to specific coordinates
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
      */
-    savePositions() {
-        try {
-            const positionsFile = path.join(this.dataDir, 'positions.json');
-            fs.writeFileSync(positionsFile, JSON.stringify(Array.from(this.positions.values()), null, 2));
-        } catch (error) {
-            console.error('Error saving positions:', error);
+    moveTo(x, y) {
+        if (typeof x !== 'number' || typeof y !== 'number') {
+            throw new Error('X and Y coordinates must be numbers');
         }
+        mouse.moveTo(x, y);
     }
-    
+
     /**
-     * Add a new cursor position
-     * @param {Object} position - Position data
-     * @returns {Object} - Created position
+     * Get current cursor position
+     * @returns {{x: number, y: number}} Current cursor position
      */
-    addPosition(position) {
-        const newPosition = {
-            id: uuidv4(),
-            name: position.name,
-            x: position.x,
-            y: position.y,
-            description: position.description || '',
-            application: position.application || '',
-            group: position.group || 'default',
-            createdAt: new Date().toISOString()
-        };
-        
-        this.positions.set(newPosition.id, newPosition);
-        this.savePositions();
-        
-        // Emit position added event
-        this.emit('positionAdded', newPosition);
-        
-        return newPosition;
+    getPosition() {
+        return mouse.getPos();
     }
-    
-    /**
-     * Get a position by ID
-     * @param {string} id - Position ID
-     * @returns {Object|null} - Position data or null if not found
-     */
-    getPositionById(id) {
-        return this.positions.get(id) || null;
-    }
-    
-    /**
-     * Update a position
-     * @param {string} id - Position ID
-     * @param {Object} updates - Position updates
-     * @returns {Object|null} - Updated position or null if not found
-     */
-    updatePosition(id, updates) {
-        const position = this.positions.get(id);
-        
-        if (!position) {
-            return null;
-        }
-        
-        const updatedPosition = {
-            ...position,
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-        
-        this.positions.set(id, updatedPosition);
-        this.savePositions();
-        
-        // Emit position updated event
-        this.emit('positionUpdated', updatedPosition);
-        
-        return updatedPosition;
-    }
-    
-    /**
-     * Delete a position
-     * @param {string} id - Position ID
-     * @returns {boolean} - True if deleted, false if not found
-     */
-    deletePosition(id) {
-        const position = this.positions.get(id);
-        
-        if (!position) {
-            return false;
-        }
-        
-        this.positions.delete(id);
-        this.savePositions();
-        
-        // Emit position deleted event
-        this.emit('positionDeleted', position);
-        
-        return true;
-    }
-    
-    /**
-     * Move cursor to a saved position
-     * @param {string} positionId - Position ID
-     * @returns {boolean} - True if moved, false if position not found
-     */
-    moveCursorToPosition(positionId) {
-        const position = this.positions.get(positionId);
-        
-        if (!position) {
-            return false;
-        }
-        
-        robot.moveMouse(position.x, position.y);
-        return true;
-    }
-    
+
     /**
      * Click at current cursor position
-     * @param {string} button - Mouse button ('left', 'right', 'middle')
-     * @param {boolean} doubleClick - Whether to double click
+     * @param {string} button - Mouse button to click ('left', 'right', 'middle')
+     * @param {boolean} double - Whether to perform a double click
      */
-    clickAtCurrentPosition(button = 'left', doubleClick = false) {
-        robot.mouseClick(button, doubleClick);
+    click(button = 'left', double = false) {
+        const validButtons = ['left', 'right', 'middle'];
+        if (!validButtons.includes(button)) {
+            throw new Error(`Invalid mouse button. Must be one of: ${validButtons.join(', ')}`);
+        }
+
+        if (double) {
+            mouse.click(button);
+            mouse.click(button);
+        } else {
+            mouse.click(button);
+        }
     }
-    
+
     /**
-     * Type text at current cursor position
-     * @param {string} text - Text to type
+     * Drag cursor from current position to target coordinates
+     * @param {number} targetX - Target X coordinate
+     * @param {number} targetY - Target Y coordinate
      */
-    typeAtCurrentPosition(text) {
-        robot.typeString(text);
+    dragTo(targetX, targetY) {
+        if (typeof targetX !== 'number' || typeof targetY !== 'number') {
+            throw new Error('Target coordinates must be numbers');
+        }
+
+        mouse.toggleButton('left', true); // Press left button
+        mouse.dragTo(targetX, targetY);
+        mouse.toggleButton('left', false); // Release left button
     }
-    
+
     /**
-     * Sleep for a specified duration
-     * @param {number} ms - Milliseconds to sleep
-     * @private
+     * Scroll the mouse wheel
+     * @param {number} amount - Scroll amount (positive for up, negative for down)
      */
-    _sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    scroll(amount) {
+        if (typeof amount !== 'number') {
+            throw new Error('Scroll amount must be a number');
+        }
+        mouse.scrollMouse(0, amount);
     }
 }
 
