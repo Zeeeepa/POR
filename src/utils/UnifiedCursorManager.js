@@ -1,23 +1,29 @@
 /**
- * CursorAutomation class for managing cursor positions and automation
- * Enhanced with additional functionality and error handling
+ * UnifiedCursorManager.js
+ * A unified cursor management system that combines functionality from
+ * CursorAutomation and CursorPositionManager into a single, consistent API.
  */
-const fs = require('fs');
+const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const EventEmitter = require('events');
 const robot = require('robotjs');
 const logger = require('./logger');
 
-class CursorAutomation extends EventEmitter {
+class UnifiedCursorManager extends EventEmitter {
+    /**
+     * Initialize the Unified Cursor Manager
+     * @param {Object} options - Configuration options
+     */
     constructor(options = {}) {
         super();
         this.dataDir = options.dataDir || path.join(process.cwd(), 'data', 'cursor-positions');
-        this.positions = new Map();
-        this.activeCursors = [];
         this.enableMultiCursor = options.enableMultiCursor || false;
         this.maxCursors = options.maxCursors || 1;
         this.cursorSpeed = options.cursorSpeed || 'medium';
+        this.showCursorPath = options.showCursorPath || false;
+        this.positions = new Map();
+        this.activeCursors = [];
         
         // Speed mappings for cursor movement
         this.speedMappings = {
@@ -28,9 +34,7 @@ class CursorAutomation extends EventEmitter {
         };
         
         // Ensure data directory exists
-        if (!fs.existsSync(this.dataDir)) {
-            fs.mkdirSync(this.dataDir, { recursive: true });
-        }
+        fs.ensureDirSync(this.dataDir);
         
         // Load saved positions
         this.loadPositions();
@@ -46,7 +50,7 @@ class CursorAutomation extends EventEmitter {
             
             if (fs.existsSync(positionsFile)) {
                 const positions = JSON.parse(fs.readFileSync(positionsFile, 'utf8'));
-                positions.forEach(pos => this.positions.set(pos.id, pos));
+                positions.forEach(pos => this.positions.set(pos.name, pos));
                 logger.info(`Loaded ${positions.length} cursor positions`);
             } else {
                 logger.info('No saved cursor positions found');
@@ -54,7 +58,7 @@ class CursorAutomation extends EventEmitter {
             
             return this.positions;
         } catch (error) {
-            logger.error('Error loading positions:', error);
+            logger.error('Error loading cursor positions:', error);
             return new Map();
         }
     }
@@ -70,7 +74,7 @@ class CursorAutomation extends EventEmitter {
             logger.info(`Saved ${this.positions.size} cursor positions`);
             return true;
         } catch (error) {
-            logger.error('Error saving positions:', error);
+            logger.error('Error saving cursor positions:', error);
             return false;
         }
     }
@@ -104,61 +108,66 @@ class CursorAutomation extends EventEmitter {
     }
     
     /**
-     * Add a new cursor position
-     * @param {Object} position - Position data
-     * @returns {Object} - Created position
-     */
-    addPosition(position) {
-        const newPosition = {
-            id: uuidv4(),
-            name: position.name,
-            x: position.x,
-            y: position.y,
-            description: position.description || '',
-            application: position.application || '',
-            group: position.group || 'default',
-            createdAt: new Date().toISOString()
-        };
-        
-        this.positions.set(newPosition.id, newPosition);
-        this.savePositions();
-        
-        // Emit position added event
-        this.emit('positionAdded', newPosition);
-        logger.info(`Added cursor position: ${position.name} at (${position.x}, ${position.y})`);
-        
-        return newPosition;
-    }
-    
-    /**
-     * Get a position by ID
-     * @param {string} id - Position ID
-     * @returns {Object|null} - Position data or null if not found
-     */
-    getPositionById(id) {
-        return this.positions.get(id) || null;
-    }
-    
-    /**
      * Get a position by name
      * @param {string} name - Position name
-     * @returns {Object|null} - Position data or null if not found
+     * @returns {Object|null} Position object or null if not found
      */
-    getPositionByName(name) {
-        return Array.from(this.positions.values()).find(p => p.name === name) || null;
+    getPosition(name) {
+        return this.positions.get(name) || null;
     }
     
     /**
-     * Update a position
-     * @param {string} id - Position ID
-     * @param {Object} updates - Position updates
-     * @returns {Object|null} - Updated position or null if not found
+     * Save a cursor position
+     * @param {string} name - Position name
+     * @param {Object} coordinates - Position coordinates {x, y}
+     * @param {Object} metadata - Additional metadata
+     * @returns {Object} Saved position
      */
-    updatePosition(id, updates) {
-        const position = this.positions.get(id);
+    savePosition(name, coordinates, metadata = {}) {
+        if (!name) {
+            throw new Error('Position name is required');
+        }
+        
+        if (!coordinates || typeof coordinates.x !== 'number' || typeof coordinates.y !== 'number') {
+            throw new Error('Valid coordinates (x, y) are required');
+        }
+        
+        const position = {
+            id: uuidv4(),
+            name,
+            x: coordinates.x,
+            y: coordinates.y,
+            description: metadata.description || '',
+            application: metadata.application || '',
+            group: metadata.group || 'default',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        
+        // Save to positions map
+        this.positions.set(name, position);
+        
+        // Save to disk
+        this.savePositions();
+        
+        // Emit event
+        this.emit('positionSaved', position);
+        
+        logger.info(`Saved cursor position: ${name} at (${coordinates.x}, ${coordinates.y})`);
+        return position;
+    }
+    
+    /**
+     * Update an existing position
+     * @param {string} name - Position name
+     * @param {Object} updates - Position updates
+     * @returns {Object|null} Updated position or null if not found
+     */
+    updatePosition(name, updates) {
+        const position = this.positions.get(name);
         
         if (!position) {
-            logger.warn(`Position not found: ${id}`);
+            logger.warn(`Position not found: ${name}`);
             return null;
         }
         
@@ -168,73 +177,51 @@ class CursorAutomation extends EventEmitter {
             updatedAt: new Date().toISOString()
         };
         
-        this.positions.set(id, updatedPosition);
+        // Update in positions map
+        this.positions.set(name, updatedPosition);
+        
+        // Save to disk
         this.savePositions();
         
-        // Emit position updated event
+        // Emit event
         this.emit('positionUpdated', updatedPosition);
-        logger.info(`Updated cursor position: ${position.name}`);
         
+        logger.info(`Updated cursor position: ${name}`);
         return updatedPosition;
     }
     
     /**
      * Delete a position
-     * @param {string} id - Position ID
-     * @returns {boolean} - True if deleted, false if not found
+     * @param {string} name - Position name
+     * @returns {boolean} Success status
      */
-    deletePosition(id) {
-        const position = this.positions.get(id);
-        
-        if (!position) {
-            logger.warn(`Position not found: ${id}`);
+    deletePosition(name) {
+        if (!this.positions.has(name)) {
+            logger.warn(`Position not found: ${name}`);
             return false;
         }
         
-        this.positions.delete(id);
+        // Get position before deleting
+        const position = this.positions.get(name);
+        
+        // Delete from positions map
+        this.positions.delete(name);
+        
+        // Save to disk
         this.savePositions();
         
-        // Emit position deleted event
+        // Emit event
         this.emit('positionDeleted', position);
-        logger.info(`Deleted cursor position: ${position.name}`);
         
+        logger.info(`Deleted cursor position: ${name}`);
         return true;
-    }
-    
-    /**
-     * Save a position with a specific name
-     * @param {string} name - Position name
-     * @param {Object} coordinates - Position coordinates {x, y}
-     * @param {Object} metadata - Additional metadata
-     * @returns {Object} - Saved position
-     */
-    savePosition(name, coordinates, metadata = {}) {
-        // Check if position with this name already exists
-        const existingPosition = this.getPositionByName(name);
-        
-        if (existingPosition) {
-            // Update existing position
-            return this.updatePosition(existingPosition.id, {
-                x: coordinates.x,
-                y: coordinates.y,
-                ...metadata
-            });
-        } else {
-            // Create new position
-            return this.addPosition({
-                name,
-                x: coordinates.x,
-                y: coordinates.y,
-                ...metadata
-            });
-        }
     }
     
     /**
      * Capture the current cursor position
      * @param {string} name - Position name
      * @param {Object} metadata - Additional metadata
-     * @returns {Object} - Captured position
+     * @returns {Object} Captured position
      */
     captureCurrentPosition(name, metadata = {}) {
         try {
@@ -251,29 +238,19 @@ class CursorAutomation extends EventEmitter {
     
     /**
      * Move cursor to a saved position
-     * @param {string} positionId - Position ID or name
+     * @param {string} name - Position name
      * @param {Object} options - Movement options
-     * @returns {boolean} - True if moved, false if position not found
+     * @returns {boolean} Success status
      */
-    moveCursorToPosition(positionId, options = {}) {
-        // Find position by ID or name
-        let position = this.getPositionById(positionId);
-        if (!position) {
-            position = this.getPositionByName(positionId);
-        }
+    moveCursorToPosition(name, options = {}) {
+        const position = this.positions.get(name);
         
         if (!position) {
-            logger.warn(`Position not found: ${positionId}`);
+            logger.warn(`Position not found: ${name}`);
             return false;
         }
         
         try {
-            // Check if we can create another cursor
-            if (this.enableMultiCursor && this.activeCursors.length >= this.maxCursors) {
-                logger.warn(`Maximum number of cursors (${this.maxCursors}) reached`);
-                return false;
-            }
-            
             // Get movement speed
             const speed = options.speed || this.cursorSpeed;
             const speedValue = this.speedMappings[speed] || this.speedMappings.medium;
@@ -287,28 +264,19 @@ class CursorAutomation extends EventEmitter {
                 this._smoothMoveCursor(position.x, position.y, speedValue);
             }
             
-            // Add to active cursors if multi-cursor is enabled
-            if (this.enableMultiCursor) {
-                this.activeCursors.push({
-                    id: uuidv4(),
-                    position: position,
-                    createdAt: new Date().toISOString()
-                });
-            }
-            
-            logger.info(`Moved cursor to position: ${position.name} at (${position.x}, ${position.y})`);
+            logger.info(`Moved cursor to position: ${name} at (${position.x}, ${position.y})`);
             return true;
         } catch (error) {
-            logger.error(`Error moving cursor to position ${positionId}: ${error.message}`);
+            logger.error(`Error moving cursor to position ${name}: ${error.message}`);
             return false;
         }
     }
     
     /**
-     * Click at current cursor position
-     * @param {string} button - Mouse button ('left', 'right', 'middle')
+     * Click at the current cursor position
+     * @param {string} button - Mouse button (left, right, middle)
      * @param {boolean} doubleClick - Whether to double click
-     * @returns {boolean} - True if clicked successfully
+     * @returns {boolean} Success status
      */
     clickAtCurrentPosition(button = 'left', doubleClick = false) {
         try {
@@ -330,14 +298,14 @@ class CursorAutomation extends EventEmitter {
     
     /**
      * Click at a named position
-     * @param {string} positionId - Position ID or name
-     * @param {string} button - Mouse button ('left', 'right', 'middle')
+     * @param {string} name - Position name
+     * @param {string} button - Mouse button (left, right, middle)
      * @param {boolean} doubleClick - Whether to double click
-     * @returns {boolean} - True if clicked successfully
+     * @returns {boolean} Success status
      */
-    clickAtPosition(positionId, button = 'left', doubleClick = false) {
+    clickAtPosition(name, button = 'left', doubleClick = false) {
         // Move cursor to position
-        const moved = this.moveCursorToPosition(positionId);
+        const moved = this.moveCursorToPosition(name);
         
         if (!moved) {
             return false;
@@ -348,29 +316,13 @@ class CursorAutomation extends EventEmitter {
     }
     
     /**
-     * Type text at current cursor position
-     * @param {string} text - Text to type
-     * @returns {boolean} - True if typed successfully
-     */
-    typeAtCurrentPosition(text) {
-        try {
-            robot.typeString(text);
-            logger.info('Typed text at current position');
-            return true;
-        } catch (error) {
-            logger.error(`Error typing at current position: ${error.message}`);
-            return false;
-        }
-    }
-    
-    /**
      * Send text to a position
-     * @param {string} positionId - Position ID or name
+     * @param {string} name - Position name
      * @param {string} text - Text to send
      * @param {Object} options - Options for sending text
-     * @returns {Promise<boolean>} - True if sent successfully
+     * @returns {Promise<boolean>} Success status
      */
-    async sendTextToPosition(positionId, text, options = {}) {
+    async sendTextToPosition(name, text, options = {}) {
         try {
             // Default options
             const opts = {
@@ -381,7 +333,7 @@ class CursorAutomation extends EventEmitter {
             };
             
             // Move cursor to position
-            const moved = this.moveCursorToPosition(positionId);
+            const moved = this.moveCursorToPosition(name);
             
             if (!moved) {
                 return false;
@@ -398,28 +350,109 @@ class CursorAutomation extends EventEmitter {
             }
             
             // Type text
-            const typed = this.typeAtCurrentPosition(text);
-            
-            if (!typed) {
-                return false;
-            }
+            robot.typeString(text);
             
             // Click after typing if needed
             if (opts.clickAfterTyping) {
                 this.clickAtCurrentPosition();
             }
             
-            logger.info(`Sent text to position: ${positionId}`);
+            logger.info(`Sent text to position: ${name}`);
             return true;
         } catch (error) {
-            logger.error(`Error sending text to position ${positionId}: ${error.message}`);
+            logger.error(`Error sending text to position ${name}: ${error.message}`);
+            return false;
+        }
+    }
+    
+    /**
+     * Import positions from a file
+     * @param {string} filePath - Path to import file
+     * @param {Object} options - Import options
+     * @returns {Object} Import results
+     */
+    importPositions(filePath, options = {}) {
+        try {
+            // Read positions from file
+            const importedPositions = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            
+            const results = {
+                imported: [],
+                skipped: [],
+                errors: []
+            };
+            
+            // Process each position
+            for (const pos of importedPositions) {
+                try {
+                    // Check if position already exists
+                    if (this.positions.has(pos.name) && !options.overwrite) {
+                        results.skipped.push({
+                            name: pos.name,
+                            reason: 'Position already exists'
+                        });
+                        continue;
+                    }
+                    
+                    // Save position
+                    const savedPosition = this.savePosition(
+                        pos.name,
+                        { x: pos.x, y: pos.y },
+                        {
+                            description: pos.description,
+                            application: pos.application,
+                            group: pos.group
+                        }
+                    );
+                    
+                    results.imported.push(savedPosition);
+                } catch (error) {
+                    results.errors.push({
+                        name: pos.name,
+                        error: error.message
+                    });
+                }
+            }
+            
+            logger.info(`Imported ${results.imported.length} positions, skipped ${results.skipped.length}, errors ${results.errors.length}`);
+            return results;
+        } catch (error) {
+            logger.error(`Error importing positions: ${error.message}`);
+            throw error;
+        }
+    }
+    
+    /**
+     * Export positions to a file
+     * @param {string} filePath - Path to export file
+     * @param {Array} positionNames - Names of positions to export (all if not specified)
+     * @returns {boolean} Success status
+     */
+    exportPositions(filePath, positionNames = null) {
+        try {
+            let positionsToExport;
+            
+            if (positionNames) {
+                positionsToExport = positionNames
+                    .map(name => this.positions.get(name))
+                    .filter(Boolean);
+            } else {
+                positionsToExport = Array.from(this.positions.values());
+            }
+            
+            fs.writeFileSync(filePath, JSON.stringify(positionsToExport, null, 2));
+            
+            logger.info(`Exported ${positionsToExport.length} positions to ${filePath}`);
+            return true;
+        } catch (error) {
+            logger.error(`Error exporting positions: ${error.message}`);
             return false;
         }
     }
     
     /**
      * Get the current screen size
-     * @returns {Object} - Screen size {width, height}
+     * @returns {Object} Screen size {width, height}
      */
     getScreenSize() {
         return robot.getScreenSize();
@@ -429,7 +462,7 @@ class CursorAutomation extends EventEmitter {
      * Check if a position is valid (within screen bounds)
      * @param {number} x - X coordinate
      * @param {number} y - Y coordinate
-     * @returns {boolean} - True if position is valid
+     * @returns {boolean} Whether the position is valid
      */
     isValidPosition(x, y) {
         const screenSize = this.getScreenSize();
@@ -475,7 +508,7 @@ class CursorAutomation extends EventEmitter {
     }
     
     /**
-     * Sleep for a specified duration (blocking)
+     * Sleep for a specified number of milliseconds (blocking)
      * @private
      * @param {number} ms - Milliseconds to sleep
      */
@@ -487,14 +520,14 @@ class CursorAutomation extends EventEmitter {
     }
     
     /**
-     * Sleep for a specified duration (non-blocking)
+     * Sleep for a specified number of milliseconds (non-blocking)
      * @private
      * @param {number} ms - Milliseconds to sleep
-     * @returns {Promise} - Promise that resolves after the specified time
+     * @returns {Promise} Promise that resolves after the specified time
      */
     _asyncSleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 
-module.exports = CursorAutomation;
+module.exports = UnifiedCursorManager;
