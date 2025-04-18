@@ -1,38 +1,29 @@
-/**
- * Unified Express server for Depla Project Manager
- * This replaces both root server.js and src/server.js
- */
-
 const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
 const fs = require('fs-extra');
-const framework = require('./framework');
-const logger = require('./utils/logger');
-// Import DeplaEnhanced directly to avoid circular dependency
-const DeplaEnhanced = require('./models/DeplaEnhanced');
-const CursorAutomation = require('./utils/CursorAutomation');
-const GitHubEnhanced = require('./utils/GitHubEnhanced');
-const TemplateManager = require('./models/TemplateManager');
-const PhaseConfigManager = require('./models/PhaseConfigManager');
-const WorkflowManager = require('./models/WorkflowManager');
-const InputConfigManager = require('./components/InputConfiguration/InputConfigManager');
+const dotenv = require('dotenv');
 
-// Import routes
+dotenv.config();
+
+const {
+  DeplaEnhanced,
+  GitHubEnhanced,
+  CursorAutomation,
+  TemplateManager,
+  PhaseConfigManager,
+  WorkflowManager,
+  logger
+} = require('./core');
+
 const inputConfigRoutes = require('./routes/inputConfigRoutes');
 
-// Load environment variables from .env file
-require('dotenv').config();
-
-// Initialize the app
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Set up view engine for server-side templates
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Middleware to ensure GitHub is initialized
 const ensureGitHubInitialized = async (req, res, next) => {
   if (!githubClient || !githubClient.isInitialized()) {
     try {
@@ -55,20 +46,16 @@ const ensureGitHubInitialized = async (req, res, next) => {
   next();
 };
 
-// Serve static files from the React app build directory in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../build')));
 } else {
-  // In development, serve from client's public directory
   app.use(express.static(path.join(__dirname, 'client/public')));
 }
 
-// Serve static files for development
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// Initialize managers
 let deplaManager;
 let githubClient;
 let templateManager;
@@ -77,26 +64,23 @@ let phaseConfigManager;
 let workflowManager;
 let inputConfigManager;
 
-// Initialize application
 async function initializeApp() {
   try {
-    // Initialize GitHub client first
     githubClient = new GitHubEnhanced();
     const githubInitialized = await githubClient.initializeClient();
     
-    // Initialize cursor manager
     cursorManager = new CursorAutomation();
     
-    // Initialize other managers
     deplaManager = new DeplaEnhanced();
     templateManager = new TemplateManager();
     phaseConfigManager = new PhaseConfigManager();
     workflowManager = new WorkflowManager();
+    
+    const InputConfigManager = require('./components/InputConfiguration/InputConfigManager');
     inputConfigManager = new InputConfigManager({ cursorManager });
     
-    // Start the server
     app.listen(PORT, () => {
-      logger.info(`Depla Project Manager running on http://localhost:${PORT}`);
+      logger.info(`POR running on http://localhost:${PORT}`);
     });
 
     return githubInitialized;
@@ -106,7 +90,6 @@ async function initializeApp() {
   }
 }
 
-// API route to check GitHub auth status
 app.get('/api/auth/status', async (req, res) => {
   try {
     if (!githubClient) {
@@ -139,7 +122,6 @@ app.get('/api/auth/status', async (req, res) => {
   }
 });
 
-// API route to set GitHub token
 app.post('/api/auth/token', async (req, res) => {
   try {
     const { token } = req.body;
@@ -178,41 +160,33 @@ app.post('/api/auth/token', async (req, res) => {
   }
 });
 
-// Routes that require GitHub authentication
 app.use('/api/github', ensureGitHubInitialized);
 app.use('/projects', ensureGitHubInitialized);
 
-// Register API routes
 app.use('/api/input-config', inputConfigRoutes);
 
-// Routes
 app.get('/', async (req, res) => {
   const { projects } = await deplaManager.initialize();
   res.render('dashboard', { projects });
 });
 
-// Input Configuration routes
 app.get('/input-config', (req, res) => {
   res.render('input-config');
 });
 
-// Serve React app for all other routes in production
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../build/index.html'));
   });
 } else {
-  // In development, serve the React dev server's index.html
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'client/public/index.html'));
   });
 }
 
-// Initialize the application
 if (require.main === module) {
   initializeApp().catch(error => {
     logger.error('Failed to initialize application:', error);
-    // Exit with error code if initialization fails
     process.exit(1);
   });
 }
