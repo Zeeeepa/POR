@@ -4,11 +4,11 @@
 const express = require('express');
 const router = express.Router();
 const InputConfigManager = require('../components/InputConfiguration/InputConfigManager');
-const UnifiedCursorManager = require('../utils/UnifiedCursorManager');
+const CursorAutomation = require('../utils/CursorAutomation');
 const logger = require('../utils/logger');
 
 // Initialize managers
-const cursorManager = new UnifiedCursorManager();
+const cursorManager = new CursorAutomation();
 const inputConfigManager = new InputConfigManager({ cursorManager });
 
 // Get all input points

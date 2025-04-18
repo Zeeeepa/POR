@@ -1,13 +1,14 @@
 /**
  * InputConfigManager.js
  * Manages input configuration for cursor positions and automation
+ * Enhances existing cursor management functionality
  */
 
 const fs = require('fs-extra');
 const path = require('path');
 const EventEmitter = require('events');
 const logger = require('../../utils/logger');
-const UnifiedCursorManager = require('../../utils/UnifiedCursorManager');
+const CursorAutomation = require('../../utils/CursorAutomation');
 
 class InputConfigManager extends EventEmitter {
   /**
@@ -18,7 +19,7 @@ class InputConfigManager extends EventEmitter {
     super();
     this.configDir = options.configDir || path.join(process.cwd(), 'data', 'input-config');
     this.configFile = path.join(this.configDir, 'input-config.json');
-    this.cursorManager = options.cursorManager || new UnifiedCursorManager();
+    this.cursorManager = options.cursorManager || new CursorAutomation();
     
     // Default configuration
     this.config = {
@@ -166,13 +167,26 @@ class InputConfigManager extends EventEmitter {
       };
       
       // Save to cursor manager
-      this.cursorManager.updatePosition(inputPoint.name, {
-        x: inputPoint.x,
-        y: inputPoint.y,
-        description: inputPoint.description,
-        application: inputPoint.application,
-        group: 'input-points'
-      });
+      const position = this.cursorManager.getPositionByName(inputPoint.name);
+      if (position) {
+        this.cursorManager.updatePosition(position.id, {
+          x: inputPoint.x,
+          y: inputPoint.y,
+          description: inputPoint.description,
+          application: inputPoint.application,
+          group: 'input-points'
+        });
+      } else {
+        this.cursorManager.savePosition(
+          inputPoint.name,
+          { x: inputPoint.x, y: inputPoint.y },
+          {
+            description: inputPoint.description,
+            application: inputPoint.application,
+            group: 'input-points'
+          }
+        );
+      }
       
       // Save configuration
       this.saveConfig();
@@ -245,12 +259,15 @@ class InputConfigManager extends EventEmitter {
     this.config.inputPoints[index] = updatedInputPoint;
     
     // Update in cursor manager
-    this.cursorManager.updatePosition(name, {
-      x: updatedInputPoint.x,
-      y: updatedInputPoint.y,
-      description: updatedInputPoint.description,
-      application: updatedInputPoint.application
-    });
+    const position = this.cursorManager.getPositionByName(name);
+    if (position) {
+      this.cursorManager.updatePosition(position.id, {
+        x: updatedInputPoint.x,
+        y: updatedInputPoint.y,
+        description: updatedInputPoint.description,
+        application: updatedInputPoint.application
+      });
+    }
     
     // Save configuration
     this.saveConfig();
@@ -287,7 +304,10 @@ class InputConfigManager extends EventEmitter {
     }
     
     // Delete from cursor manager
-    this.cursorManager.deletePosition(name);
+    const position = this.cursorManager.getPositionByName(name);
+    if (position) {
+      this.cursorManager.deletePosition(position.id);
+    }
     
     // Save configuration
     this.saveConfig();

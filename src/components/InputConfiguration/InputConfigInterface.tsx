@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import styled from 'styled-components';
 
 interface InputPoint {
   name: string;
@@ -16,6 +17,96 @@ interface AutomationSettings {
   typeDelay: number;
   enableAutomation: boolean;
 }
+
+const ConfigContainer = styled.div`
+  padding: 20px;
+`;
+
+const ControlPanel = styled.div`
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 15px;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+`;
+
+const Button = styled.button`
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  background-color: #4caf50;
+  color: white;
+  
+  &:hover {
+    background-color: #45a049;
+  }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #f44336;
+  
+  &:hover {
+    background-color: #d32f2f;
+  }
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  
+  th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  th {
+    background-color: #f0f0f0;
+  }
+  
+  tr.default-point {
+    background-color: #e6f7ff;
+  }
+`;
+
+const Message = styled.div<{ type: 'success' | 'error' | 'info' }>`
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  background-color: ${props => 
+    props.type === 'success' ? '#dff0d8' : 
+    props.type === 'error' ? '#f2dede' : '#d9edf7'};
+  color: ${props => 
+    props.type === 'success' ? '#3c763d' : 
+    props.type === 'error' ? '#a94442' : '#31708f'};
+  border: 1px solid ${props => 
+    props.type === 'success' ? '#d6e9c6' : 
+    props.type === 'error' ? '#ebccd1' : '#bce8f1'};
+`;
 
 const InputConfigInterface: React.FC = () => {
   // State for input points
@@ -52,10 +143,14 @@ const InputConfigInterface: React.FC = () => {
   const loadInputPoints = async () => {
     try {
       const response = await axios.get('/api/input-config/points');
-      setInputPoints(response.data.inputPoints);
-      setDefaultInputPoint(response.data.defaultInputPoint);
+      if (response.data.success) {
+        setInputPoints(response.data.inputPoints);
+        setDefaultInputPoint(response.data.defaultInputPoint);
+      } else {
+        showMessage('Failed to load input points: ' + response.data.error, 'error');
+      }
     } catch (error) {
-      showMessage('Failed to load input points', 'error');
+      showMessage('Error loading input points', 'error');
     }
   };
   
@@ -63,9 +158,17 @@ const InputConfigInterface: React.FC = () => {
   const loadAutomationSettings = async () => {
     try {
       const response = await axios.get('/api/input-config/settings');
-      setAutomationSettings(response.data);
+      if (response.data.success) {
+        setAutomationSettings({
+          clickDelay: response.data.clickDelay,
+          typeDelay: response.data.typeDelay,
+          enableAutomation: response.data.enableAutomation
+        });
+      } else {
+        showMessage('Failed to load automation settings: ' + response.data.error, 'error');
+      }
     } catch (error) {
-      showMessage('Failed to load automation settings', 'error');
+      showMessage('Error loading automation settings', 'error');
     }
   };
   
@@ -122,17 +225,21 @@ const InputConfigInterface: React.FC = () => {
             application: newInputPoint.application
           });
           
-          // Add new input point to list
-          setInputPoints(prev => [...prev, response.data]);
-          
-          // Reset form
-          setNewInputPoint({
-            name: '',
-            description: '',
-            application: ''
-          });
-          
-          showMessage('Input point captured successfully', 'success');
+          if (response.data.success) {
+            // Add new input point to list
+            setInputPoints(prev => [...prev, response.data.inputPoint]);
+            
+            // Reset form
+            setNewInputPoint({
+              name: '',
+              description: '',
+              application: ''
+            });
+            
+            showMessage('Input point captured successfully', 'success');
+          } else {
+            showMessage('Failed to capture input point: ' + response.data.error, 'error');
+          }
         } catch (error) {
           showMessage('Failed to capture input point', 'error');
         }
@@ -162,15 +269,19 @@ const InputConfigInterface: React.FC = () => {
     try {
       const response = await axios.put(`/api/input-config/points/${selectedInputPoint.name}`, selectedInputPoint);
       
-      // Update input points list
-      setInputPoints(prev => prev.map(p => 
-        p.name === selectedInputPoint.name ? response.data : p
-      ));
-      
-      // Reset selected input point
-      setSelectedInputPoint(null);
-      
-      showMessage('Input point updated successfully', 'success');
+      if (response.data.success) {
+        // Update input points list
+        setInputPoints(prev => prev.map(p => 
+          p.name === selectedInputPoint.name ? response.data.inputPoint : p
+        ));
+        
+        // Reset selected input point
+        setSelectedInputPoint(null);
+        
+        showMessage('Input point updated successfully', 'success');
+      } else {
+        showMessage('Failed to update input point: ' + response.data.error, 'error');
+      }
     } catch (error) {
       showMessage('Failed to update input point', 'error');
     }
@@ -178,18 +289,26 @@ const InputConfigInterface: React.FC = () => {
   
   // Delete an input point
   const deleteInputPoint = async (name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the input point "${name}"?`)) {
+      return;
+    }
+    
     try {
-      await axios.delete(`/api/input-config/points/${name}`);
+      const response = await axios.delete(`/api/input-config/points/${name}`);
       
-      // Remove from input points list
-      setInputPoints(prev => prev.filter(p => p.name !== name));
-      
-      // Reset selected input point if it was deleted
-      if (selectedInputPoint?.name === name) {
-        setSelectedInputPoint(null);
+      if (response.data.success) {
+        // Remove from input points list
+        setInputPoints(prev => prev.filter(p => p.name !== name));
+        
+        // Reset selected input point if it was deleted
+        if (selectedInputPoint?.name === name) {
+          setSelectedInputPoint(null);
+        }
+        
+        showMessage('Input point deleted successfully', 'success');
+      } else {
+        showMessage('Failed to delete input point: ' + response.data.error, 'error');
       }
-      
-      showMessage('Input point deleted successfully', 'success');
     } catch (error) {
       showMessage('Failed to delete input point', 'error');
     }
@@ -198,12 +317,16 @@ const InputConfigInterface: React.FC = () => {
   // Set default input point
   const setAsDefault = async (name: string) => {
     try {
-      await axios.post(`/api/input-config/points/${name}/default`);
+      const response = await axios.post(`/api/input-config/points/${name}/default`);
       
-      // Update default input point
-      setDefaultInputPoint(name);
-      
-      showMessage(`${name} set as default input point`, 'success');
+      if (response.data.success) {
+        // Update default input point
+        setDefaultInputPoint(name);
+        
+        showMessage(`${name} set as default input point`, 'success');
+      } else {
+        showMessage('Failed to set default input point: ' + response.data.error, 'error');
+      }
     } catch (error) {
       showMessage('Failed to set default input point', 'error');
     }
@@ -212,8 +335,13 @@ const InputConfigInterface: React.FC = () => {
   // Test an input point
   const testInputPoint = async (name: string) => {
     try {
-      await axios.post(`/api/input-config/points/${name}/test`);
-      showMessage('Test click sent to input point', 'success');
+      const response = await axios.post(`/api/input-config/points/${name}/test`);
+      
+      if (response.data.success) {
+        showMessage('Test click sent to input point', 'success');
+      } else {
+        showMessage('Failed to test input point: ' + response.data.error, 'error');
+      }
     } catch (error) {
       showMessage('Failed to test input point', 'error');
     }
@@ -222,67 +350,76 @@ const InputConfigInterface: React.FC = () => {
   // Save automation settings
   const saveAutomationSettings = async () => {
     try {
-      await axios.post('/api/input-config/settings', automationSettings);
-      showMessage('Automation settings saved successfully', 'success');
+      const response = await axios.post('/api/input-config/settings', automationSettings);
+      
+      if (response.data.success) {
+        showMessage('Automation settings saved successfully', 'success');
+      } else {
+        showMessage('Failed to save automation settings: ' + response.data.error, 'error');
+      }
     } catch (error) {
       showMessage('Failed to save automation settings', 'error');
     }
   };
   
   return (
-    <div className="input-config-interface">
+    <ConfigContainer>
       <h1>Input Configuration</h1>
       
       {/* Message display */}
       {message && (
-        <div className={`message message-${messageType}`}>
+        <Message type={messageType}>
           {message}
-        </div>
+        </Message>
       )}
       
       <div className="input-config-container">
         {/* Input Points List */}
-        <div className="input-points-list">
+        <div>
           <h2>Input Points</h2>
           
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Coordinates</th>
-                <th>Description</th>
-                <th>Application</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inputPoints.map(point => (
-                <tr key={point.name} className={defaultInputPoint === point.name ? 'default-point' : ''}>
-                  <td>{point.name}</td>
-                  <td>({point.x}, {point.y})</td>
-                  <td>{point.description}</td>
-                  <td>{point.application}</td>
-                  <td>
-                    <button onClick={() => selectInputPoint(point)}>Edit</button>
-                    <button onClick={() => deleteInputPoint(point.name)}>Delete</button>
-                    <button onClick={() => testInputPoint(point.name)}>Test</button>
-                    {defaultInputPoint !== point.name && (
-                      <button onClick={() => setAsDefault(point.name)}>Set as Default</button>
-                    )}
-                  </td>
+          {inputPoints.length === 0 ? (
+            <p>No input points configured yet. Add one using the form.</p>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Coordinates</th>
+                  <th>Description</th>
+                  <th>Application</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {inputPoints.map(point => (
+                  <tr key={point.name} className={defaultInputPoint === point.name ? 'default-point' : ''}>
+                    <td>{point.name}</td>
+                    <td>({point.x}, {point.y})</td>
+                    <td>{point.description}</td>
+                    <td>{point.application}</td>
+                    <td>
+                      <Button onClick={() => selectInputPoint(point)}>Edit</Button>
+                      <Button onClick={() => deleteInputPoint(point.name)}>Delete</Button>
+                      <Button onClick={() => testInputPoint(point.name)}>Test</Button>
+                      {defaultInputPoint !== point.name && (
+                        <Button onClick={() => setAsDefault(point.name)}>Set as Default</Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </div>
         
         {/* Add New Input Point */}
-        <div className="add-input-point">
+        <div>
           <h2>Add New Input Point</h2>
           
-          <div className="form-group">
-            <label htmlFor="name">Name:</label>
-            <input
+          <FormGroup>
+            <Label htmlFor="name">Name:</Label>
+            <Input
               type="text"
               id="name"
               name="name"
@@ -290,11 +427,11 @@ const InputConfigInterface: React.FC = () => {
               onChange={handleInputChange}
               disabled={isCapturing}
             />
-          </div>
+          </FormGroup>
           
-          <div className="form-group">
-            <label htmlFor="description">Description:</label>
-            <input
+          <FormGroup>
+            <Label htmlFor="description">Description:</Label>
+            <Input
               type="text"
               id="description"
               name="description"
@@ -302,11 +439,11 @@ const InputConfigInterface: React.FC = () => {
               onChange={handleInputChange}
               disabled={isCapturing}
             />
-          </div>
+          </FormGroup>
           
-          <div className="form-group">
-            <label htmlFor="application">Application:</label>
-            <input
+          <FormGroup>
+            <Label htmlFor="application">Application:</Label>
+            <Input
               type="text"
               id="application"
               name="application"
@@ -314,37 +451,37 @@ const InputConfigInterface: React.FC = () => {
               onChange={handleInputChange}
               disabled={isCapturing}
             />
-          </div>
+          </FormGroup>
           
           {isCapturing ? (
-            <button onClick={cancelCapturing} className="cancel-button">
+            <CancelButton onClick={cancelCapturing}>
               Cancel Capturing
-            </button>
+            </CancelButton>
           ) : (
-            <button onClick={startCapturing} className="capture-button">
+            <Button onClick={startCapturing}>
               Capture Position
-            </button>
+            </Button>
           )}
         </div>
         
         {/* Edit Input Point */}
         {selectedInputPoint && (
-          <div className="edit-input-point">
+          <div>
             <h2>Edit Input Point</h2>
             
-            <div className="form-group">
-              <label htmlFor="edit-name">Name:</label>
-              <input
+            <FormGroup>
+              <Label htmlFor="edit-name">Name:</Label>
+              <Input
                 type="text"
                 id="edit-name"
                 value={selectedInputPoint.name}
                 disabled
               />
-            </div>
+            </FormGroup>
             
-            <div className="form-group">
-              <label htmlFor="edit-x">X Coordinate:</label>
-              <input
+            <FormGroup>
+              <Label htmlFor="edit-x">X Coordinate:</Label>
+              <Input
                 type="number"
                 id="edit-x"
                 value={selectedInputPoint.x}
@@ -353,11 +490,11 @@ const InputConfigInterface: React.FC = () => {
                   x: parseInt(e.target.value, 10)
                 })}
               />
-            </div>
+            </FormGroup>
             
-            <div className="form-group">
-              <label htmlFor="edit-y">Y Coordinate:</label>
-              <input
+            <FormGroup>
+              <Label htmlFor="edit-y">Y Coordinate:</Label>
+              <Input
                 type="number"
                 id="edit-y"
                 value={selectedInputPoint.y}
@@ -366,11 +503,11 @@ const InputConfigInterface: React.FC = () => {
                   y: parseInt(e.target.value, 10)
                 })}
               />
-            </div>
+            </FormGroup>
             
-            <div className="form-group">
-              <label htmlFor="edit-description">Description:</label>
-              <input
+            <FormGroup>
+              <Label htmlFor="edit-description">Description:</Label>
+              <Input
                 type="text"
                 id="edit-description"
                 value={selectedInputPoint.description}
@@ -379,11 +516,11 @@ const InputConfigInterface: React.FC = () => {
                   description: e.target.value
                 })}
               />
-            </div>
+            </FormGroup>
             
-            <div className="form-group">
-              <label htmlFor="edit-application">Application:</label>
-              <input
+            <FormGroup>
+              <Label htmlFor="edit-application">Application:</Label>
+              <Input
                 type="text"
                 id="edit-application"
                 value={selectedInputPoint.application}
@@ -392,26 +529,26 @@ const InputConfigInterface: React.FC = () => {
                   application: e.target.value
                 })}
               />
-            </div>
+            </FormGroup>
             
             <div className="button-group">
-              <button onClick={updateInputPoint} className="save-button">
+              <Button onClick={updateInputPoint}>
                 Save Changes
-              </button>
-              <button onClick={() => setSelectedInputPoint(null)} className="cancel-button">
+              </Button>
+              <CancelButton onClick={() => setSelectedInputPoint(null)}>
                 Cancel
-              </button>
+              </CancelButton>
             </div>
           </div>
         )}
         
         {/* Automation Settings */}
-        <div className="automation-settings">
+        <div>
           <h2>Automation Settings</h2>
           
-          <div className="form-group">
-            <label htmlFor="clickDelay">Click Delay (ms):</label>
-            <input
+          <FormGroup>
+            <Label htmlFor="clickDelay">Click Delay (ms):</Label>
+            <Input
               type="number"
               id="clickDelay"
               name="clickDelay"
@@ -420,11 +557,11 @@ const InputConfigInterface: React.FC = () => {
               min="0"
               max="5000"
             />
-          </div>
+          </FormGroup>
           
-          <div className="form-group">
-            <label htmlFor="typeDelay">Type Delay (ms):</label>
-            <input
+          <FormGroup>
+            <Label htmlFor="typeDelay">Type Delay (ms):</Label>
+            <Input
               type="number"
               id="typeDelay"
               name="typeDelay"
@@ -433,11 +570,11 @@ const InputConfigInterface: React.FC = () => {
               min="0"
               max="1000"
             />
-          </div>
+          </FormGroup>
           
-          <div className="form-group checkbox">
-            <label htmlFor="enableAutomation">
-              <input
+          <FormGroup>
+            <Label htmlFor="enableAutomation">
+              <Input
                 type="checkbox"
                 id="enableAutomation"
                 name="enableAutomation"
@@ -445,15 +582,15 @@ const InputConfigInterface: React.FC = () => {
                 onChange={handleSettingChange}
               />
               Enable Automation
-            </label>
-          </div>
+            </Label>
+          </FormGroup>
           
-          <button onClick={saveAutomationSettings} className="save-button">
+          <Button onClick={saveAutomationSettings}>
             Save Settings
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </ConfigContainer>
   );
 };
 
