@@ -1,0 +1,360 @@
+# POR Project Development Queries
+
+This file contains a series of prompts for service workers to analyze and implement features described in IDEA.md. The goal is to optimize the development process by batching tasks that can be executed concurrently while identifying connection points between modules.
+
+#################### SERVICE WORKER 1 ####################
+# Project Analysis and Architecture Assessment
+
+Analyze the POR project codebase to understand its current architecture, identify existing features, and map dependencies between modules. Focus on:
+1. Analyzing the current project structure and organization
+2. Identifying key components and their responsibilities
+3. Mapping dependencies and connection points between modules
+4. Assessing code quality and identifying potential issues
+5. Comparing implemented features against requirements in IDEA.md
+6. Creating a comprehensive architecture diagram
+
+Save your findings in a detailed report that will guide subsequent implementation phases.
+
+#################### SERVICE WORKER 2 ####################
+# Cursor Position Management Analysis and Enhancement
+
+Analyze the current cursor position management implementation and the new files in implement2 directory. Focus on:
+1. Understanding the current CursorAutomation.js implementation
+2. Analyzing the new CursorPositionManager.js in implement2
+3. Identifying improvements and new features in the implement2 version
+4. Mapping integration points with other modules
+5. Designing an implementation plan for enhancing cursor position management
+6. Identifying potential issues or conflicts during integration
+
+Prepare a detailed implementation plan for enhancing cursor position management with the new features.
+
+#################### SERVICE WORKER 3 ####################
+# Template Management Analysis and Enhancement
+
+Analyze the current template management implementation and the new files in implement2 directory. Focus on:
+1. Understanding the current templateEngine.js implementation
+2. Analyzing the new templateEngine.js and templatemanager.js in implement2
+3. Identifying improvements and new features in the implement2 versions
+4. Mapping integration points with other modules
+5. Designing an implementation plan for enhancing template management
+6. Identifying potential issues or conflicts during integration
+
+Prepare a detailed implementation plan for enhancing template management with the new features.
+
+#################### SERVICE WORKER 4 ####################
+# Phase Configuration Analysis and Enhancement
+
+Analyze the current phase configuration implementation and the new files in implement2 directory. Focus on:
+1. Understanding the current phase configuration implementation (if any)
+2. Analyzing the new PhaseConfigManager.js in implement2
+3. Identifying new features and capabilities in the implement2 version
+4. Mapping integration points with other modules
+5. Designing an implementation plan for implementing/enhancing phase configuration
+6. Identifying potential issues or conflicts during integration
+
+Prepare a detailed implementation plan for implementing or enhancing phase configuration with the new features.
+
+#################### SERVICE WORKER 5 ####################
+# Workflow Management Analysis and Enhancement
+
+Analyze the current workflow management implementation and the new files in implement2 directory. Focus on:
+1. Understanding the current WorkflowManager.js implementation (if any)
+2. Analyzing the new WorkflowManager.js in implement2
+3. Identifying new features and capabilities in the implement2 version
+4. Mapping integration points with other modules
+5. Designing an implementation plan for implementing/enhancing workflow management
+6. Identifying potential issues or conflicts during integration
+
+Prepare a detailed implementation plan for implementing or enhancing workflow management with the new features.
+
+#################### SERVICE WORKER 6 ####################
+# UI Components Analysis and Enhancement
+
+Analyze the current UI components and the new EJS files in implement2 directory. Focus on:
+1. Understanding the current UI implementation
+2. Analyzing the new EJS files in implement2 (template-manager.ejs, cursor-positions.ejs, phase-editor.ejs, workflow-dashboard.ejs, etc.)
+3. Identifying new features and improvements in the implement2 versions
+4. Mapping integration points with backend modules
+5. Designing an implementation plan for enhancing the UI components
+6. Identifying potential issues or conflicts during integration
+
+Prepare a detailed implementation plan for enhancing the UI components with the new features.
+
+#################### SERVICE WORKER 7 ####################
+# GitHub Integration Analysis and Enhancement
+
+Analyze the current GitHub integration implementation and identify enhancements needed based on IDEA.md. Focus on:
+1. Understanding the current GitHub integration implementation
+2. Identifying requirements for enhanced GitHub integration from IDEA.md
+3. Designing improvements for repository management, webhook handling, and PR/branch monitoring
+4. Mapping integration points with other modules
+5. Designing an implementation plan for enhancing GitHub integration
+6. Identifying potential issues or conflicts during implementation
+
+Prepare a detailed implementation plan for enhancing GitHub integration with the required features.
+
+#################### SERVICE WORKER 8 ####################
+# Concurrency Management Analysis and Design
+
+Analyze the requirements for concurrency management based on IDEA.md and design a solution. Focus on:
+1. Understanding the concurrency requirements from IDEA.md
+2. Designing a robust queue management system for handling 100-200+ concurrent actions
+3. Designing rate limiting and throttling mechanisms
+4. Planning error handling and recovery strategies
+5. Mapping integration points with other modules
+6. Identifying potential issues or conflicts during implementation
+
+Prepare a detailed design document for implementing concurrency management with the required features.
+
+==================== PHASE 2 ====================
+
+#################### SERVICE WORKER 9 ####################
+# Integration Plan for Cursor Position Management
+
+Based on the analysis from Service Worker 2, create a detailed integration plan for the cursor position management features. Focus on:
+1. Specific code changes needed to integrate CursorPositionManager.js from implement2
+2. Updates required to existing files that interact with cursor position management
+3. New routes or API endpoints needed for the enhanced functionality
+4. UI integration with the new cursor-positions.ejs
+5. Testing strategy for the integrated features
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the integration.
+
+#################### SERVICE WORKER 10 ####################
+# Integration Plan for Template Management
+
+Based on the analysis from Service Worker 3, create a detailed integration plan for the template management features. Focus on:
+1. Specific code changes needed to integrate templateEngine.js and templatemanager.js from implement2
+2. Updates required to existing files that interact with template management
+3. New routes or API endpoints needed for the enhanced functionality
+4. UI integration with the new template-manager.ejs
+5. Testing strategy for the integrated features
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the integration.
+
+#################### SERVICE WORKER 11 ####################
+# Integration Plan for Phase Configuration
+
+Based on the analysis from Service Worker 4, create a detailed integration plan for the phase configuration features. Focus on:
+1. Specific code changes needed to integrate PhaseConfigManager.js from implement2
+2. Updates required to existing files that interact with phase configuration
+3. New routes or API endpoints needed for the enhanced functionality
+4. UI integration with the new phase-editor.ejs
+5. Testing strategy for the integrated features
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the integration.
+
+#################### SERVICE WORKER 12 ####################
+# Integration Plan for Workflow Management
+
+Based on the analysis from Service Worker 5, create a detailed integration plan for the workflow management features. Focus on:
+1. Specific code changes needed to integrate WorkflowManager.js from implement2
+2. Updates required to existing files that interact with workflow management
+3. New routes or API endpoints needed for the enhanced functionality
+4. UI integration with the new workflow-dashboard.ejs
+5. Testing strategy for the integrated features
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the integration.
+
+#################### SERVICE WORKER 13 ####################
+# Integration Plan for UI Components
+
+Based on the analysis from Service Worker 6, create a detailed integration plan for the UI components. Focus on:
+1. Specific changes needed to integrate all new EJS files from implement2
+2. Updates required to existing UI components that interact with the new features
+3. Client-side JavaScript changes needed for the enhanced functionality
+4. Styling and layout considerations
+5. Testing strategy for the integrated UI components
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the integration.
+
+#################### SERVICE WORKER 14 ####################
+# Integration Plan for GitHub Integration
+
+Based on the analysis from Service Worker 7, create a detailed integration plan for the enhanced GitHub integration. Focus on:
+1. Specific code changes needed to enhance GitHub integration
+2. Updates required to existing files that interact with GitHub
+3. New routes or API endpoints needed for the enhanced functionality
+4. UI integration for GitHub-related features
+5. Testing strategy for the integrated features
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the integration.
+
+#################### SERVICE WORKER 15 ####################
+# Implementation Plan for Concurrency Management
+
+Based on the analysis from Service Worker 8, create a detailed implementation plan for concurrency management. Focus on:
+1. Specific code changes needed to implement the queue management system
+2. Rate limiting and throttling implementation details
+3. Error handling and recovery mechanisms
+4. Integration with other modules
+5. Testing strategy for concurrency features
+6. Rollback plan in case of issues
+
+Provide specific code snippets and file modifications required for the implementation.
+
+==================== PHASE 3 ====================
+
+#################### SERVICE WORKER 16 ####################
+# Implementation of Cursor Position Management
+
+Based on the integration plan from Service Worker 9, implement the cursor position management features. Focus on:
+1. Integrating CursorPositionManager.js from implement2
+2. Updating existing files that interact with cursor position management
+3. Adding new routes or API endpoints for the enhanced functionality
+4. Integrating the UI with cursor-positions.ejs
+5. Testing the implemented features
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+#################### SERVICE WORKER 17 ####################
+# Implementation of Template Management
+
+Based on the integration plan from Service Worker 10, implement the template management features. Focus on:
+1. Integrating templateEngine.js and templatemanager.js from implement2
+2. Updating existing files that interact with template management
+3. Adding new routes or API endpoints for the enhanced functionality
+4. Integrating the UI with template-manager.ejs
+5. Testing the implemented features
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+#################### SERVICE WORKER 18 ####################
+# Implementation of Phase Configuration
+
+Based on the integration plan from Service Worker 11, implement the phase configuration features. Focus on:
+1. Integrating PhaseConfigManager.js from implement2
+2. Updating existing files that interact with phase configuration
+3. Adding new routes or API endpoints for the enhanced functionality
+4. Integrating the UI with phase-editor.ejs
+5. Testing the implemented features
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+#################### SERVICE WORKER 19 ####################
+# Implementation of Workflow Management
+
+Based on the integration plan from Service Worker 12, implement the workflow management features. Focus on:
+1. Integrating WorkflowManager.js from implement2
+2. Updating existing files that interact with workflow management
+3. Adding new routes or API endpoints for the enhanced functionality
+4. Integrating the UI with workflow-dashboard.ejs
+5. Testing the implemented features
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+#################### SERVICE WORKER 20 ####################
+# Implementation of UI Components
+
+Based on the integration plan from Service Worker 13, implement the UI component enhancements. Focus on:
+1. Integrating all new EJS files from implement2
+2. Updating existing UI components that interact with the new features
+3. Implementing client-side JavaScript changes for the enhanced functionality
+4. Applying styling and layout improvements
+5. Testing the integrated UI components
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+#################### SERVICE WORKER 21 ####################
+# Implementation of GitHub Integration
+
+Based on the integration plan from Service Worker 14, implement the enhanced GitHub integration. Focus on:
+1. Implementing code changes for enhanced GitHub integration
+2. Updating existing files that interact with GitHub
+3. Adding new routes or API endpoints for the enhanced functionality
+4. Integrating the UI for GitHub-related features
+5. Testing the implemented features
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+#################### SERVICE WORKER 22 ####################
+# Implementation of Concurrency Management
+
+Based on the implementation plan from Service Worker 15, implement the concurrency management features. Focus on:
+1. Implementing the queue management system
+2. Implementing rate limiting and throttling mechanisms
+3. Implementing error handling and recovery mechanisms
+4. Integrating with other modules
+5. Testing the concurrency features
+6. Documenting the changes and new features
+
+Provide the complete implementation with all necessary code changes.
+
+==================== PHASE 4 ====================
+
+#################### SERVICE WORKER 23 ####################
+# Integration Testing and Validation
+
+Perform comprehensive integration testing of all implemented features. Focus on:
+1. Testing the integration of all components
+2. Validating that all features described in IDEA.md are properly implemented
+3. Identifying any remaining issues or bugs
+4. Verifying performance under load (concurrent operations)
+5. Checking for edge cases and error handling
+6. Documenting test results and any remaining issues
+
+Provide a detailed test report with findings and recommendations for any necessary fixes.
+
+#################### SERVICE WORKER 24 ####################
+# Performance Optimization
+
+Analyze the performance of the implemented features and identify optimization opportunities. Focus on:
+1. Identifying performance bottlenecks
+2. Optimizing database operations
+3. Improving concurrency handling
+4. Enhancing UI responsiveness
+5. Reducing resource usage
+6. Documenting optimization recommendations
+
+Provide specific optimization recommendations with code examples where applicable.
+
+#################### SERVICE WORKER 25 ####################
+# Security Review
+
+Perform a security review of the implemented features. Focus on:
+1. Identifying potential security vulnerabilities
+2. Reviewing authentication and authorization mechanisms
+3. Checking for proper input validation and sanitization
+4. Reviewing GitHub API token handling
+5. Identifying potential data exposure risks
+6. Documenting security recommendations
+
+Provide specific security recommendations with code examples where applicable.
+
+#################### SERVICE WORKER 26 ####################
+# Documentation Generation
+
+Create comprehensive documentation for the enhanced POR project. Focus on:
+1. Updating README.md with project overview and setup instructions
+2. Creating user documentation for all features
+3. Documenting API endpoints and their usage
+4. Creating developer documentation for code structure and architecture
+5. Documenting configuration options and their effects
+6. Creating troubleshooting guides
+
+Provide complete documentation in Markdown format.
+
+#################### SERVICE WORKER 27 ####################
+# Final Review and Recommendations
+
+Perform a final review of the entire project and provide recommendations for future enhancements. Focus on:
+1. Assessing overall project quality and completeness
+2. Identifying any remaining gaps compared to IDEA.md requirements
+3. Suggesting future enhancements and improvements
+4. Identifying potential scalability challenges
+5. Recommending maintenance practices
+6. Providing a roadmap for future development
+
+Provide a comprehensive review report with detailed recommendations.
