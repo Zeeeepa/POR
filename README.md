@@ -1,191 +1,124 @@
-# Message Queue System
+# POR - Project Orchestration and Reporting
 
-A robust message queue system with support for multiple queue types, persistence, acknowledgment, monitoring, and more.
+A comprehensive system for managing multiple GitHub projects, automating cursor positioning for sending prompts, and orchestrating development workflows.
 
 ## Features
 
-- **Multiple Queue Types**:
-  - FIFO (First-In-First-Out) queues
-  - Priority queues
-  - Delayed queues
+- **Input Configuration**: Capture and manage cursor positions for automated text entry
+- **Project Management**: Import and manage multiple GitHub repositories
+- **Template Management**: Create and manage reusable prompt templates
+- **Phase Configuration**: Configure development phases with custom templates
+- **Workflow Automation**: Automate development workflows with GitHub integration
+- **Concurrent Development**: Support for concurrent development across multiple projects
 
-- **Message Persistence**:
-  - In-memory storage
-  - File-based storage
-  - Extensible storage adapter system
+## Architecture
 
-- **Message Acknowledgment and Retry**:
-  - Visibility timeout for message processing
-  - Automatic retry for failed messages
-  - Dead letter queues for unprocessable messages
+The system is built with a modular architecture:
 
-- **Queue Monitoring and Statistics**:
-  - Detailed queue statistics
-  - System-wide monitoring
-  - Event-based monitoring
+- **Core Components**:
+  - `UnifiedCursorManager`: Manages cursor positions and automation
+  - `InputConfigManager`: Manages input configuration for cursor positions
+  - `DeplaEnhanced`: Main manager class that coordinates other components
+  - `MessageQueueManager`: Handles message queuing and delivery
+  - `GitHubEnhanced`: Manages GitHub integration
+  - `WorkflowManager`: Manages development workflows
+  - `MultiProjectManager`: Manages multiple projects
 
-- **Rate Limiting and Throttling**:
-  - Per-queue rate limiting
-  - Configurable throttling
+- **API Routes**:
+  - `/api/input-config`: Input configuration API endpoints
+  - `/api/github`: GitHub integration API endpoints
+  - `/api/projects`: Project management API endpoints
 
-- **Distributed Queue Processing**:
-  - Support for message groups in FIFO queues
-  - Scalable architecture
+- **User Interface**:
+  - React components for the frontend
+  - EJS templates for server-rendered pages
 
-- **Error Handling**:
-  - Specific error types
-  - Comprehensive error reporting
-  - Dead letter queues
+## Getting Started
 
-## Installation
+### Prerequisites
 
-```bash
-npm install
-```
+- Node.js 14.x or higher
+- npm 7.x or higher
+- Git
+
+### Installation
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/POR.git
+   cd POR
+   ```
+
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Create a `.env` file with the following variables:
+   ```
+   PORT=3000
+   GITHUB_TOKEN=your_github_token
+   ```
+
+4. Start the development server:
+   ```
+   npm run dev
+   ```
+
+5. Open your browser and navigate to `http://localhost:3000`
 
 ## Usage
 
-### Basic Usage
+### Input Configuration
 
-```javascript
-const MessageQueueSystem = require('./src/models/MessageQueueSystem');
+1. Navigate to the Input Configuration page
+2. Click "Capture Position" to capture a new cursor position
+3. Move your cursor to the desired position and press Enter
+4. Configure automation settings as needed
 
-// Create a new message queue system
-const queueSystem = new MessageQueueSystem({
-  storageType: 'memory', // or 'file'
-  storageOptions: {
-    // Storage-specific options
-  }
-});
+### Project Management
 
-// Create a queue
-await queueSystem.createQueue('my-queue', {
-  type: 'fifo', // or 'priority', 'delayed'
-  // Queue-specific options
-});
+1. Navigate to the Projects page
+2. Click "Add Project" to add a new GitHub repository
+3. Configure project settings and templates
+4. Use batch import to add multiple repositories at once
 
-// Send a message
-const messageId = await queueSystem.sendMessage('my-queue', 'Hello, world!');
+### Workflow Automation
 
-// Receive messages
-const messages = await queueSystem.receiveMessages('my-queue', {
-  maxMessages: 10
-});
+1. Configure phases for your project
+2. Set up templates for each phase
+3. Start the workflow automation
+4. Monitor progress on the Workflow Dashboard
 
-// Process messages
-for (const message of messages) {
-  console.log(`Processing message: ${message.body}`);
-  
-  // Acknowledge the message when done
-  await queueSystem.acknowledgeMessage('my-queue', message.id);
-}
+## Development
 
-// Clean up when done
-queueSystem.cleanup();
+### Project Structure
+
+```
+POR/
+├── src/
+│   ├── components/         # React components
+│   ├── models/             # Data models
+│   ├── routes/             # API routes
+│   ├── utils/              # Utility functions
+│   ├── views/              # EJS templates
+│   └── server.js           # Express server
+├── public/                 # Static assets
+├── .env                    # Environment variables
+└── package.json            # Dependencies
 ```
 
-### FIFO Queues
+### Adding New Features
 
-FIFO queues guarantee that messages are processed in the exact order they were sent.
+1. Create a new branch:
+   ```
+   git checkout -b feature/your-feature-name
+   ```
 
-```javascript
-// Create a FIFO queue
-await queueSystem.createQueue('fifo-queue', { type: 'fifo' });
-
-// Send messages to different message groups
-await queueSystem.sendMessage('fifo-queue', 'Message 1', { messageGroupId: 'group1' });
-await queueSystem.sendMessage('fifo-queue', 'Message 2', { messageGroupId: 'group1' });
-await queueSystem.sendMessage('fifo-queue', 'Message 3', { messageGroupId: 'group2' });
-
-// Receive messages from a specific group
-const messages = await queueSystem.receiveMessages('fifo-queue', {
-  messageGroupId: 'group1',
-  maxMessages: 10
-});
-```
-
-### Priority Queues
-
-Priority queues process messages based on their priority level.
-
-```javascript
-// Create a priority queue
-await queueSystem.createQueue('priority-queue', {
-  type: 'priority',
-  priorityLevels: [1, 2, 3, 4, 5],
-  defaultPriority: 3
-});
-
-// Send messages with different priorities
-await queueSystem.sendMessage('priority-queue', 'High Priority', { priority: 5 });
-await queueSystem.sendMessage('priority-queue', 'Medium Priority', { priority: 3 });
-await queueSystem.sendMessage('priority-queue', 'Low Priority', { priority: 1 });
-
-// Receive messages (highest priority first)
-const messages = await queueSystem.receiveMessages('priority-queue');
-```
-
-### Delayed Queues
-
-Delayed queues make messages available for processing after a specified delay.
-
-```javascript
-// Create a delayed queue
-await queueSystem.createQueue('delayed-queue', { type: 'delayed' });
-
-// Send a message with a delay
-await queueSystem.sendMessage('delayed-queue', 'Delayed Message', {
-  delaySeconds: 60 // 1 minute
-});
-
-// Change the delay of a message
-await queueSystem.changeMessageDelay('delayed-queue', messageId, 30);
-```
-
-### Dead Letter Queues
-
-Dead letter queues store messages that couldn't be processed successfully.
-
-```javascript
-// Create source and dead letter queues
-await queueSystem.createQueue('source-queue');
-await queueSystem.createQueue('dlq-queue');
-
-// Set up dead letter queue
-await queueSystem.setDeadLetterQueue('source-queue', 'dlq-queue');
-
-// Move a message to the dead letter queue
-await queueSystem.deadLetterMessage('source-queue', messageId, 'Processing failed');
-```
-
-## API Reference
-
-### MessageQueueSystem
-
-- `constructor(options)`: Initialize the message queue system
-- `createQueue(name, options)`: Create a new queue
-- `deleteQueue(name)`: Delete a queue
-- `sendMessage(queueName, message, options)`: Send a message to a queue
-- `receiveMessages(queueName, options)`: Receive messages from a queue
-- `acknowledgeMessage(queueName, messageId)`: Acknowledge a message as processed
-- `deadLetterMessage(queueName, messageId, reason)`: Move a message to the dead letter queue
-- `purgeQueue(queueName)`: Remove all messages from a queue
-- `getQueueAttributes(queueName)`: Get queue attributes and statistics
-- `setQueueAttributes(queueName, attributes)`: Set queue attributes
-- `listQueues(prefix)`: List all queues with an optional prefix
-- `setDeadLetterQueue(sourceQueueName, deadLetterQueueName)`: Set up a dead letter queue
-- `changeMessageDelay(queueName, messageId, delaySeconds)`: Change the delay of a message
-- `getSystemStats()`: Get system statistics
-- `cleanup()`: Clean up resources
-
-## Testing
-
-Run the test suite:
-
-```bash
-npm test
-```
+2. Implement your feature
+3. Write tests
+4. Submit a pull request
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
