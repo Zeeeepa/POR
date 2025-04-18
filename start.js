@@ -1,10 +1,10 @@
 /**
  * Unified application entry point
- * This starts the application with the unified components
+ * This starts the application with the unified components from the core module
  */
 
 const { app, initializeApp } = require('./src/server');
-const logger = require('./src/utils/logger');
+const { logger } = require('./src/core');
 
 // Initialize the application
 initializeApp().catch(error => {
